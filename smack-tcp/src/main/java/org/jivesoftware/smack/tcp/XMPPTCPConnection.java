@@ -847,6 +847,16 @@ public class XMPPTCPConnection extends XMPPConnection {
         callConnectionClosedOnErrorListener(e);
     }
 
+    // Magnet Extension
+    synchronized void notifyPacketSent(Packet packet) {
+        callPacketSent(packet);
+    }
+
+    synchronized void notifyPacketFailed(Packet packet, Exception cause) {
+        callPacketFailed(packet, cause);
+    }
+    // Magnet Extension
+
     @Override
     protected void processPacket(Packet packet) {
         super.processPacket(packet);

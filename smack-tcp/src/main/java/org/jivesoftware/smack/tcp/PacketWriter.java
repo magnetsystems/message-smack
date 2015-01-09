@@ -20,6 +20,7 @@ package org.jivesoftware.smack.tcp;
 import org.jivesoftware.smack.SmackException.NotConnectedException;
 import org.jivesoftware.smack.packet.Packet;
 import org.jivesoftware.smack.util.ArrayBlockingQueueWithShutdown;
+import org.jivesoftware.smack.util.XmlStringBuilder;
 
 import java.io.IOException;
 import java.io.Writer;
@@ -153,18 +154,25 @@ class PacketWriter {
     }
 
     private void writePackets(Thread thisThread) {
+        Packet packet = null;
         try {
             // Open the stream.
             openStream();
             // Write out packets from the queue.
             while (!done && (writerThread == thisThread)) {
-                Packet packet = nextPacket();
+                packet = nextPacket();
                 if (packet != null) {
-                    writer.write(packet.toXML().toString());
-
-                    if (queue.isEmpty()) {
-                        writer.flush();
-                    }
+                  CharSequence packetXml = packet.toXML();
+                  if (packetXml instanceof XmlStringBuilder) {
+                    ((XmlStringBuilder) packetXml).write(writer);
+                  } else {
+                    writer.write(packetXml.toString());
+                  }
+                  if (queue.isEmpty()) {
+                      writer.flush();
+                  }
+                  connection.notifyPacketSent(packet);
+                  packet = null;
                 }
             }
             // Flush out the rest of the queue. If the queue is extremely large, it's possible
@@ -172,8 +180,15 @@ class PacketWriter {
             // by the shutdown process.
             try {
                 while (!queue.isEmpty()) {
-                    Packet packet = queue.remove();
-                    writer.write(packet.toXML().toString());
+                    packet = queue.remove();
+                    CharSequence packetXml = packet.toXML();
+                    if (packetXml instanceof XmlStringBuilder) {
+                      ((XmlStringBuilder) packetXml).write(writer);
+                    } else {
+                      writer.write(packetXml.toString());
+                    }
+                    connection.notifyPacketSent(packet);
+                    packet = null;
                 }
                 writer.flush();
             }
@@ -212,6 +227,13 @@ class PacketWriter {
             // or if the it was caused because the socket got closed
             if (!(done || connection.isSocketClosed())) {
                 shutdown();
+                if (packet != null) {
+                  connection.notifyPacketFailed(packet, ioe);
+                }
+                while (!queue.isEmpty()) {
+                  packet = queue.remove();
+                  connection.notifyPacketFailed(packet, ioe);
+                }
                 connection.notifyConnectionError(ioe);
             }
         }

@@ -16,6 +16,9 @@
  */
 package org.jivesoftware.smack.util;
 
+import java.io.Closeable;
+import java.io.IOException;
+import java.io.Writer;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -104,5 +107,56 @@ public class LazyStringBuilder implements Appendable, CharSequence {
             cache = sb.toString();
         }
         return cache;
+    }
+    
+    // Magnet extension.
+    public void write(Writer writer) throws IOException {
+      if (cache != null) {
+        // Use cached xml if available
+        writer.write(toString());
+        return;
+      }
+      // Recursively to write them out in chunks.
+      StringBuilder sb = new StringBuilder(8192);
+      for (CharSequence csq : list) {
+        if (csq instanceof XmlStringBuilder) {
+          // Flush any buffered fragments first.
+          if (sb.length() > 0) {
+            writer.write(sb.toString());
+            sb.setLength(0);
+          }
+          // Recursively write the fragments.
+          ((XmlStringBuilder) csq).write(writer);
+        } else {
+          int csqLen = csq.length();
+          if ((sb.length() + csqLen) <= 8192) {
+            // Buffer a small fragment.
+            sb.append(csq);
+          } else {
+            // Flush the buffered fragments.
+            if (sb.length() > 0) {
+              writer.write(sb.toString());
+              sb.setLength(0);
+            }
+            int start = 0;
+            // Write a large fragment directly in 8K chunks.
+            while (csqLen > 0) {
+              int len = Math.min(csqLen, 8192);
+              writer.write(csq.subSequence(start, start+len).toString());
+              start += len;
+              csqLen -= len;
+            }
+          }
+        }
+        // Is it a file based CharSequence?
+        if (csq instanceof Closeable) {
+          ((Closeable) csq).close();
+        }
+      }
+      // Flush any remaining buffered fragments.
+      if (sb.length() > 0) {
+        writer.write(sb.toString());
+        sb.setLength(0);
+      }
     }
 }

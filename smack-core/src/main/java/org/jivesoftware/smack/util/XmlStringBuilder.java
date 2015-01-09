@@ -16,6 +16,9 @@
  */
 package org.jivesoftware.smack.util;
 
+import java.io.IOException;
+import java.io.Writer;
+
 import org.jivesoftware.smack.packet.PacketExtension;
 
 public class XmlStringBuilder implements Appendable, CharSequence {
@@ -239,5 +242,10 @@ public class XmlStringBuilder implements Appendable, CharSequence {
     @Override
     public int hashCode() {
         return toString().hashCode();
+    }
+    
+    // Magnet extension.
+    public void write(Writer writer) throws IOException {
+      sb.write(writer);
     }
 }

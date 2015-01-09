@@ -139,6 +139,17 @@ public abstract class XMPPConnection {
             new ConcurrentHashMap<PacketListener, ListenerWrapper>();
 
     /**
+     * List of PacketListeners that will be notified when a packet sent successfully.
+     */
+    protected final Map<PacketListener, ListenerWrapper> sentListeners =
+            new ConcurrentHashMap<PacketListener, ListenerWrapper>();
+    
+    /**
+     * List of PacketListeners that will be notified when packet send failure occurred.
+     */
+    protected final Map<PacketListener, ListenerWrapper> failedListeners =
+            new ConcurrentHashMap<PacketListener, ListenerWrapper>();
+    /**
      * List of PacketInterceptors that will be notified when a new packet is about to be
      * sent to the server. These interceptors may modify the packet before it is being
      * actually sent to the server.
@@ -923,6 +934,106 @@ public abstract class XMPPConnection {
     }
 
     /**
+     * Registers a sent packet listener with this connection. The listener will be
+     * notified of every packet that this connection sent. A packet filter determines
+     * which packets will be delivered to the listener. Note that the thread
+     * that writes packets will be used to invoke the listeners. Therefore, each
+     * packet listener should complete all operations quickly or use a different
+     * thread for processing.
+     * 
+     * @param packetListener the packet listener to notify of sent packets.
+     * @param packetFilter   the packet filter to use.
+     */
+    public void addPacketSentListener(PacketListener packetListener, PacketFilter packetFilter) {
+        if (packetListener == null) {
+            throw new NullPointerException("Packet listener is null.");
+        }
+        ListenerWrapper wrapper = new ListenerWrapper(packetListener, packetFilter);
+        sentListeners.put(packetListener, wrapper);
+    }
+
+    /**
+     * Removes a packet listener for sent packets from this connection.
+     * 
+     * @param packetListener the packet listener to remove.
+     */
+    public void removePacketSentListener(PacketListener packetListener) {
+        sentListeners.remove(packetListener);
+    }
+
+    /**
+     * Get a map of all packet listeners for sending packets of this connection.
+     * 
+     * @return a map of all packet listeners for sent packets.
+     */
+    protected Map<PacketListener, ListenerWrapper> getPacketSentListeners() {
+        return sentListeners;
+    }
+    
+    private void firePacketSentListeners(Packet packet) {
+      // Notify the listeners of the actually sent packet
+      for (ListenerWrapper listenerWrapper : sentListeners.values()) {
+          try {
+              listenerWrapper.notifyListener(packet);
+          }
+          catch (NotConnectedException e) {
+              LOGGER.log(Level.WARNING, "Got not connected exception, aborting");
+              break;
+          }
+      }
+    }
+    
+    /**
+     * Registers a send failure packet listener with this connection. The 
+     * listener will be notified of the packet that this connection send failed.
+     * A packet filter determines which packets will be delivered to the 
+     * listener. Note that the thread that writes packets will be used to invoke
+     * the listeners. Therefore, each packet listener should complete all 
+     * operations quickly or use a different thread for processing.
+     * 
+     * @param packetListener the packet listener to notify of send failure packets.
+     * @param packetFilter   the packet filter to use.
+     */
+    public void addPacketFailedListener(PacketListener packetListener, PacketFilter packetFilter) {
+        if (packetListener == null) {
+            throw new NullPointerException("Packet listener is null.");
+        }
+        ListenerWrapper wrapper = new ListenerWrapper(packetListener, packetFilter);
+        failedListeners.put(packetListener, wrapper);
+    }
+
+    /**
+     * Removes a packet listener for send failure packets from this connection.
+     * 
+     * @param packetListener the packet listener to remove.
+     */
+    public void removePacketFailedListener(PacketListener packetListener) {
+        failedListeners.remove(packetListener);
+    }
+
+    /**
+     * Get a map of all packet listeners for sending packets of this connection.
+     * 
+     * @return a map of all packet listeners for sent packets.
+     */
+    protected Map<PacketListener, ListenerWrapper> getPacketFailedListeners() {
+        return failedListeners;
+    }
+
+    private void firePacketFailedListeners(Packet packet, Exception cause) {
+      // Notify the listeners of the send failure packet
+      for (ListenerWrapper listenerWrapper : failedListeners.values()) {
+          try {
+              listenerWrapper.notifyListener(packet);
+          }
+          catch (NotConnectedException e) {
+              LOGGER.log(Level.WARNING, "Got not connected exception, aborting");
+              break;
+          }
+      }
+    }
+    
+    /**
      * Registers a packet interceptor with this connection. The interceptor will be
      * invoked every time a packet is about to be sent by this connection. Interceptors
      * may modify the packet to be sent. A packet filter determines which packets
@@ -1202,6 +1313,18 @@ public abstract class XMPPConnection {
             }
         }
     }
+
+    // Magnet Extension
+    protected void callPacketSent(Packet packet) {
+      LOGGER.log(Level.FINE, "Packet "+packet.getPacketID()+" sent");
+      firePacketSentListeners(packet);
+    }
+
+    protected void callPacketFailed(Packet packet, Exception e) {
+      LOGGER.log(Level.WARNING, "Packet "+packet.getPacketID()+" failure", e);
+      firePacketFailedListeners(packet, e);
+    }
+    // Magnet Extension
 
     /**
      * A wrapper class to associate a packet filter with a listener.
