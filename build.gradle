@@ -211,6 +211,11 @@ subprojects {
 							name 'Florian Schmaus'
 							email 'flow@igniterealtime.org'
 						}
+						developer {
+							id 'mmx'
+							name 'Magnet Message Exchange Team'
+							email 'mmx@magnet.com'
+						}
 					}
 				}
 			}
@@ -273,4 +278,10 @@ def getGitCommit() {
 def getDatestamp() {
 	def date = new Date()
 	return date.format('yyyy-MM-dd')
+}
+
+// Rename every smack-*.jar to mmx-smack-*.jar in zip
+task mmxDistributionZip(type: Exec, dependsOn: distributionZip) {
+  workingDir projectDir
+  commandLine './repackage.bash'
 }
