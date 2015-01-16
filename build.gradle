@@ -33,7 +33,7 @@ allprojects {
 		oneLineDesc = 'An Open Source XMPP (Jabber) client library'
 		jxmppVersion = "0.1.0"
 	}
-	group = 'org.igniterealtime.smack'
+	group = 'com.magnet.mmx.ext'
 	sourceCompatibility = 1.7
 	targetCompatibility = sourceCompatibility
 	version = shortVersion
