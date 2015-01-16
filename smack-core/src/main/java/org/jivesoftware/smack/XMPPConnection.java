@@ -1316,12 +1316,10 @@ public abstract class XMPPConnection {
 
     // Magnet Extension
     protected void callPacketSent(Packet packet) {
-      LOGGER.log(Level.FINE, "Packet "+packet.getPacketID()+" sent");
       firePacketSentListeners(packet);
     }
 
     protected void callPacketFailed(Packet packet, Exception e) {
-      LOGGER.log(Level.WARNING, "Packet "+packet.getPacketID()+" failure", e);
       firePacketFailedListeners(packet, e);
     }
     // Magnet Extension

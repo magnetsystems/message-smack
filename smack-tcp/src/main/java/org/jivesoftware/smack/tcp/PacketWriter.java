@@ -226,7 +226,6 @@ class PacketWriter {
             // The exception can be ignored if the the connection is 'done'
             // or if the it was caused because the socket got closed
             if (!(done || connection.isSocketClosed())) {
-                shutdown();
                 if (packet != null) {
                   connection.notifyPacketFailed(packet, ioe);
                 }
@@ -234,6 +233,7 @@ class PacketWriter {
                   packet = queue.remove();
                   connection.notifyPacketFailed(packet, ioe);
                 }
+                shutdown();
                 connection.notifyConnectionError(ioe);
             }
         }

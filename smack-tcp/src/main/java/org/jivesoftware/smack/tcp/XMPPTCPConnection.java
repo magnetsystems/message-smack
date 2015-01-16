@@ -848,11 +848,13 @@ public class XMPPTCPConnection extends XMPPConnection {
     }
 
     // Magnet Extension
-    synchronized void notifyPacketSent(Packet packet) {
+    // Must not be synchronized.
+    void notifyPacketSent(Packet packet) {
         callPacketSent(packet);
     }
 
-    synchronized void notifyPacketFailed(Packet packet, Exception cause) {
+    // Must not be synchronized.
+    void notifyPacketFailed(Packet packet, Exception cause) {
         callPacketFailed(packet, cause);
     }
     // Magnet Extension
