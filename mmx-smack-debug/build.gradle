@@ -1,0 +1,8 @@
+description = """\
+Mmx-Smack GUI debugger.
+Inspect the exchanged XMPP stanzas."""
+
+dependencies {
+	compile project(':mmx-smack-core')
+	testCompile project(':mmx-smack-core').sourceSets.test.runtimeClasspath
+}
