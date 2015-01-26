@@ -105,6 +105,7 @@ markdownToHtml {
 
 task distributionZip(type: Zip, dependsOn: [javadocAll, prepareReleasedocs, markdownToHtml]) {
 	classifier buildDate
+        rename 'smack(.*)','mmx-smack$1' 
 	into ('javadoc') {
 		from(javadocAllDir)
 	}
@@ -280,8 +281,4 @@ def getDatestamp() {
 	return date.format('yyyy-MM-dd')
 }
 
-// Rename every smack-*.jar to mmx-smack-*.jar in zip
-task mmxDistributionZip(type: Exec, dependsOn: distributionZip) {
-  workingDir projectDir
-  commandLine './repackage.bash'
-}
+
