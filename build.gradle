@@ -161,16 +161,9 @@ subprojects {
 				if (signingRequired) {
 					beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
 				}
-				repository(url: project.sonatypeStagingUrl) {
-					if (sonatypeCredentialsAvailable) {
-						authentication(userName: sonatypeUsername, password: sonatypePassword)
-					}
-				}
-				snapshotRepository(url: project.sonatypeSnapshotUrl) {
-					if (sonatypeCredentialsAvailable) {
-						authentication(userName: sonatypeUsername, password: sonatypePassword)
-					}
-				}
+                                repository(url: "http://dev-repo.magnet.com:8081/artifactory/libs-release-local") {
+                                       authentication(userName: "${releaseUser}", password: "${releasePassword}")
+                                }
 
 				pom.project {
 					name 'Smack'
@@ -235,7 +228,7 @@ subprojects {
 	}
 }
 
-['smack-extensions', 'smack-experimental', 'smack-legacy'].each { name ->
+['mmx-smack-extensions', 'mmx-smack-experimental', 'mmx-smack-legacy'].each { name ->
 	project(":$name") {
 		jar {
 			manifest {
@@ -245,7 +238,7 @@ subprojects {
 	}
 }
 
-['smack-resolver-javax'].each { name ->
+['mmx-smack-resolver-javax'].each { name ->
 	project(":$name") {
 		jar {
 			manifest {
@@ -280,8 +273,4 @@ def getDatestamp() {
 	return date.format('yyyy-MM-dd')
 }
 
-// Rename every smack-*.jar to mmx-smack-*.jar in zip
-task mmxDistributionZip(type: Exec, dependsOn: distributionZip) {
-  workingDir projectDir
-  commandLine './repackage.bash'
-}
+
