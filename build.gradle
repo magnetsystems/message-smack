@@ -25,14 +25,15 @@ allprojects {
 		rootConfigDir = new File(rootDir, 'config')
 		sonatypeCredentialsAvailable = project.hasProperty('sonatypeUsername') && project.hasProperty('sonatypePassword')
 		isReleaseVersion = !isSnapshot
-		signingRequired = isReleaseVersion
+//		signingRequired = isReleaseVersion
+		signingRequired = false
 		sonatypeSnapshotUrl = 'https://oss.sonatype.org/content/repositories/snapshots'
 		sonatypeStagingUrl = 'https://oss.sonatype.org/service/local/staging/deploy/maven2'
 		buildDate = (new java.text.SimpleDateFormat("yyyy-MM-dd")).format(new Date())
 		oneLineDesc = 'An Open Source XMPP (Jabber) client library'
 		jxmppVersion = "0.1.0"
 	}
-	group = 'org.igniterealtime.smack'
+	group = 'com.magnet.mmx.ext'
 	sourceCompatibility = 1.7
 	targetCompatibility = sourceCompatibility
 	version = shortVersion
@@ -160,16 +161,9 @@ subprojects {
 				if (signingRequired) {
 					beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
 				}
-				repository(url: project.sonatypeStagingUrl) {
-					if (sonatypeCredentialsAvailable) {
-						authentication(userName: sonatypeUsername, password: sonatypePassword)
-					}
-				}
-				snapshotRepository(url: project.sonatypeSnapshotUrl) {
-					if (sonatypeCredentialsAvailable) {
-						authentication(userName: sonatypeUsername, password: sonatypePassword)
-					}
-				}
+                                repository(url: "http://dev-repo.magnet.com:8081/artifactory/libs-release-local") {
+                                       authentication(userName: "${releaseUser}", password: "${releasePassword}")
+                                }
 
 				pom.project {
 					name 'Smack'
@@ -210,6 +204,11 @@ subprojects {
 							name 'Florian Schmaus'
 							email 'flow@igniterealtime.org'
 						}
+						developer {
+							id 'mmx'
+							name 'Magnet Message Exchange Team'
+							email 'mmx@magnet.com'
+						}
 					}
 				}
 			}
@@ -229,7 +228,7 @@ subprojects {
 	}
 }
 
-['smack-extensions', 'smack-experimental', 'smack-legacy'].each { name ->
+['mmx-smack-extensions', 'mmx-smack-experimental', 'mmx-smack-legacy'].each { name ->
 	project(":$name") {
 		jar {
 			manifest {
@@ -239,7 +238,7 @@ subprojects {
 	}
 }
 
-['smack-resolver-javax'].each { name ->
+['mmx-smack-resolver-javax'].each { name ->
 	project(":$name") {
 		jar {
 			manifest {
@@ -273,3 +272,5 @@ def getDatestamp() {
 	def date = new Date()
 	return date.format('yyyy-MM-dd')
 }
+
+
