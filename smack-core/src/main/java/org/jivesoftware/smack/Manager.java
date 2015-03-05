@@ -18,14 +18,15 @@ package org.jivesoftware.smack;
 
 import java.lang.ref.WeakReference;
 
+import org.jivesoftware.smack.util.Objects;
+
 public abstract class Manager {
 
     final WeakReference<XMPPConnection> weakConnection;
 
     public Manager(XMPPConnection connection) {
-        if (connection == null) {
-            throw new IllegalArgumentException("XMPPConnection must not be null");
-        }
+        Objects.requireNonNull(connection, "XMPPConnection must not be null");
+
         weakConnection = new WeakReference<XMPPConnection>(connection);
     }
 

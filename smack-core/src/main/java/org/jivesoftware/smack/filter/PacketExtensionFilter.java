@@ -17,7 +17,7 @@
 
 package org.jivesoftware.smack.filter;
 
-import org.jivesoftware.smack.packet.Packet;
+import org.jivesoftware.smack.packet.Stanza;
 import org.jivesoftware.smack.packet.PacketExtension;
 import org.jivesoftware.smack.util.StringUtils;
 
@@ -40,9 +40,8 @@ public class PacketExtensionFilter implements PacketFilter {
      * @param namespace the XML namespace of the packet extension.
      */
     public PacketExtensionFilter(String elementName, String namespace) {
-        if (StringUtils.isNullOrEmpty(namespace)) {
-            throw new IllegalArgumentException("namespace must not be null or empty");
-        }
+        StringUtils.requireNotNullOrEmpty(namespace, "namespace must not be null or empty");
+
         this.elementName = elementName;
         this.namespace = namespace;
     }
@@ -66,7 +65,12 @@ public class PacketExtensionFilter implements PacketFilter {
         this(packetExtension.getElementName(), packetExtension.getNamespace());
     }
 
-    public boolean accept(Packet packet) {
+    public boolean accept(Stanza packet) {
         return packet.hasExtension(elementName, namespace);
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + ": element=" + elementName + " namespace=" + namespace;
     }
 }

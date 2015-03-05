@@ -37,8 +37,9 @@ import org.jivesoftware.smack.XMPPException;
 import org.jivesoftware.smack.XMPPException.XMPPErrorException;
 import org.jivesoftware.smack.filter.OrFilter;
 import org.jivesoftware.smack.filter.PacketFilter;
-import org.jivesoftware.smack.packet.Packet;
+import org.jivesoftware.smack.packet.Stanza;
 import org.jivesoftware.smackx.si.packet.StreamInitiation;
+import org.jxmpp.jid.Jid;
 
 
 /**
@@ -61,7 +62,7 @@ public class FaultTolerantNegotiator extends StreamNegotiator {
         this.connection = connection;
     }
 
-    public PacketFilter getInitiationPacketFilter(String from, String streamID) {
+    public PacketFilter getInitiationPacketFilter(Jid from, String streamID) {
         if (primaryFilter == null || secondaryFilter == null) {
             primaryFilter = primaryNegotiator.getInitiationPacketFilter(from, streamID);
             secondaryFilter = secondaryNegotiator.getInitiationPacketFilter(from, streamID);
@@ -69,17 +70,17 @@ public class FaultTolerantNegotiator extends StreamNegotiator {
         return new OrFilter(primaryFilter, secondaryFilter);
     }
 
-    InputStream negotiateIncomingStream(Packet streamInitiation) {
+    InputStream negotiateIncomingStream(Stanza streamInitiation) {
         throw new UnsupportedOperationException("Negotiation only handled by create incoming " +
                 "stream method.");
     }
 
-    final Packet initiateIncomingStream(XMPPConnection connection, StreamInitiation initiation) {
+    final Stanza initiateIncomingStream(XMPPConnection connection, StreamInitiation initiation) {
         throw new UnsupportedOperationException("Initiation handled by createIncomingStream " +
                 "method");
     }
 
-    public InputStream createIncomingStream(StreamInitiation initiation) throws SmackException {
+    public InputStream createIncomingStream(StreamInitiation initiation) throws SmackException, InterruptedException {
         PacketCollector collector = connection.createPacketCollectorAndSend(
                         getInitiationPacketFilter(initiation.getFrom(), initiation.getSessionID()),
                         super.createInitiationAccept(initiation, getNamespaces()));
@@ -139,12 +140,12 @@ public class FaultTolerantNegotiator extends StreamNegotiator {
         return stream;
     }
 
-    private StreamNegotiator determineNegotiator(Packet streamInitiation) {
+    private StreamNegotiator determineNegotiator(Stanza streamInitiation) {
         return primaryFilter.accept(streamInitiation) ? primaryNegotiator : secondaryNegotiator;
     }
 
-    public OutputStream createOutgoingStream(String streamID, String initiator, String target)
-                    throws SmackException, XMPPException {
+    public OutputStream createOutgoingStream(String streamID, Jid initiator, Jid target)
+                    throws SmackException, XMPPException, InterruptedException {
         OutputStream stream;
         try {
             stream = primaryNegotiator.createOutgoingStream(streamID, initiator, target);
@@ -175,11 +176,8 @@ public class FaultTolerantNegotiator extends StreamNegotiator {
             this.collector = collector;
         }
 
-        public InputStream call() throws XMPPErrorException, InterruptedException, SmackException {
-            Packet streamInitiation = collector.nextResult();
-            if (streamInitiation == null) {
-                throw new NoResponseException(connection);
-            }
+        public InputStream call() throws XMPPErrorException, InterruptedException, NoResponseException, SmackException {
+            Stanza streamInitiation = collector.nextResultOrThrow();
             StreamNegotiator negotiator = determineNegotiator(streamInitiation);
             return negotiator.negotiateIncomingStream(streamInitiation);
         }

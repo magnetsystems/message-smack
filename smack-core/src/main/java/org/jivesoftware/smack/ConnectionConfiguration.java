@@ -17,11 +17,9 @@
 
 package org.jivesoftware.smack;
 
-import java.util.Locale;
-
 import org.jivesoftware.smack.packet.Session;
 import org.jivesoftware.smack.proxy.ProxyInfo;
-import org.jivesoftware.smack.rosterstore.RosterStore;
+import org.jxmpp.jid.DomainBareJid;
 
 import javax.net.SocketFactory;
 import javax.net.ssl.HostnameVerifier;
@@ -37,7 +35,7 @@ public abstract class ConnectionConfiguration {
 
     static {
         // Ensure that Smack is initialized when ConnectionConfiguration is used, or otherwise e.g.
-        // SmackConfiguration.DEBUG_ENABLED may not be initialized yet.
+        // SmackConfiguration.DEBUG may not be initialized yet.
         SmackConfiguration.getVersion();
     }
 
@@ -46,7 +44,7 @@ public abstract class ConnectionConfiguration {
      * of the server. However, there are some servers like google where host would be
      * talk.google.com and the serviceName would be gmail.com.
      */
-    protected final String serviceName;
+    protected final DomainBareJid serviceName;
     protected final String host;
     protected final int port;
 
@@ -65,11 +63,16 @@ public abstract class ConnectionConfiguration {
     // Holds the socket factory that is used to generate the socket in the connection
     private final SocketFactory socketFactory;
 
-    private final String username;
+    private final CharSequence username;
     private final String password;
     private final String resource;
+
+    /**
+     * Initial presence as of RFC 6121 § 4.2
+     * @see <a href="http://xmpp.org/rfcs/rfc6121.html#presence-initial">RFC 6121 § 4.2 Initial Presence</a>
+     */
     private final boolean sendPresence;
-    private final boolean rosterLoadedAtLogin;
+
     private final boolean legacySessionDisabled;
     private final SecurityMode securityMode;
 
@@ -85,21 +88,13 @@ public abstract class ConnectionConfiguration {
 
     private final HostnameVerifier hostnameVerifier;
 
-    /**
-     * Permanent store for the Roster, needed for roster versioning
-     */
-    private final RosterStore rosterStore;
-
     // Holds the proxy information (such as proxyhost, proxyport, username, password etc)
     protected final ProxyInfo proxy;
 
+    protected final boolean allowNullOrEmptyUsername;
+
     protected ConnectionConfiguration(Builder<?,?> builder) {
-        if (builder.username != null) {
-            // Do partial version of nameprep on the username.
-            username = builder.username.toLowerCase(Locale.US).trim();
-        } else {
-            username = null;
-        }
+        username = builder.username;
         password = builder.password;
         callbackHandler = builder.callbackHandler;
 
@@ -132,10 +127,9 @@ public abstract class ConnectionConfiguration {
         enabledSSLCiphers = builder.enabledSSLCiphers;
         hostnameVerifier = builder.hostnameVerifier;
         sendPresence = builder.sendPresence;
-        rosterLoadedAtLogin = builder.rosterLoadedAtLogin;
         legacySessionDisabled = builder.legacySessionDisabled;
-        rosterStore = builder.rosterStore;
         debuggerEnabled = builder.debuggerEnabled;
+        allowNullOrEmptyUsername = builder.allowEmptyOrNullUsername;
     }
 
     /**
@@ -143,13 +137,13 @@ public abstract class ConnectionConfiguration {
      *
      * @return the server name of the target server.
      */
-    public String getServiceName() {
+    public DomainBareJid getServiceName() {
         return serviceName;
     }
 
     /**
      * Returns the TLS security mode used when making the connection. By default,
-     * the mode is {@link SecurityMode#enabled}.
+     * the mode is {@link SecurityMode#ifpossible}.
      *
      * @return the security mode.
      */
@@ -230,7 +224,7 @@ public abstract class ConnectionConfiguration {
 
     /**
      * Returns true if the new connection about to be establish is going to be debugged. By
-     * default the value of {@link SmackConfiguration#DEBUG_ENABLED} is used.
+     * default the value of {@link SmackConfiguration#DEBUG} is used.
      *
      * @return true if the new connection about to be establish is going to be debugged.
      */
@@ -239,23 +233,15 @@ public abstract class ConnectionConfiguration {
     }
 
     /**
-     * Returns true if the roster will be loaded from the server when logging in. This
-     * is the common behaviour for clients but sometimes clients may want to differ this
-     * or just never do it if not interested in rosters.
-     *
-     * @return true if the roster will be loaded from the server when logging in.
-     */
-    public boolean isRosterLoadedAtLogin() {
-        return rosterLoadedAtLogin;
-    }
-
-    /**
      * Returns true if a {@link Session} will be requested on login if the server
      * supports it. Although this was mandatory on RFC 3921, RFC 6120/6121 don't
      * even mention this part of the protocol.
      *
      * @return true if a session has to be requested when logging in.
+     * @deprecated Smack processes the 'optional' element of the session stream feature.
+     * @see Builder#setLegacySessionDisabled(boolean)
      */
+    @Deprecated
     public boolean isLegacySessionDisabled() {
         return legacySessionDisabled;
     }
@@ -284,14 +270,6 @@ public abstract class ConnectionConfiguration {
     }
 
     /**
-     * Get the permanent roster store
-     */
-    public RosterStore getRosterStore() {
-        return rosterStore;
-    }
-
-
-    /**
      * An enumeration for TLS security modes that are available when making a connection
      * to the XMPP server.
      */
@@ -307,8 +285,13 @@ public abstract class ConnectionConfiguration {
         /**
          * Security via TLS encryption is used whenever it's available. This is the
          * default setting.
+         * <p>
+         * <b>Do not use this setting</b> unless you can't use {@link #required}. An attacker could easily perform a
+         * Man-in-the-middle attack and prevent TLS from being used, leaving you with an unencrypted (and
+         * unauthenticated) connection.
+         * </p>
          */
-        enabled,
+        ifpossible,
 
         /**
          * Security via TLS encryption is disabled and only un-encrypted connections will
@@ -323,7 +306,7 @@ public abstract class ConnectionConfiguration {
      *
      * @return the username to use when trying to reconnect to the server.
      */
-    public String getUsername() {
+    public CharSequence getUsername() {
         return this.username;
     }
 
@@ -383,7 +366,7 @@ public abstract class ConnectionConfiguration {
      * @param <C> the resulting connection configuration type parameter.
      */
     public static abstract class Builder<B extends Builder<B, C>, C extends ConnectionConfiguration> {
-        private SecurityMode securityMode = SecurityMode.enabled;
+        private SecurityMode securityMode = SecurityMode.ifpossible;
         private String keystorePath = System.getProperty("javax.net.ssl.keyStore");
         private String keystoreType = "jks";
         private String pkcs11Library = "pkcs11.config";
@@ -391,20 +374,19 @@ public abstract class ConnectionConfiguration {
         private String[] enabledSSLProtocols;
         private String[] enabledSSLCiphers;
         private HostnameVerifier hostnameVerifier;
-        private String username;
+        private CharSequence username;
         private String password;
         private String resource = "Smack";
         private boolean sendPresence = true;
-        private boolean rosterLoadedAtLogin = true;
         private boolean legacySessionDisabled = false;
-        private RosterStore rosterStore;
         private ProxyInfo proxy;
         private CallbackHandler callbackHandler;
-        private boolean debuggerEnabled = SmackConfiguration.DEBUG_ENABLED;
+        private boolean debuggerEnabled = SmackConfiguration.DEBUG;
         private SocketFactory socketFactory;
-        private String serviceName;
+        private DomainBareJid serviceName;
         private String host;
         private int port = 5222;
+        private boolean allowEmptyOrNullUsername = false;
 
         protected Builder() {
         }
@@ -412,14 +394,15 @@ public abstract class ConnectionConfiguration {
         /**
          * Set the XMPP entities username and password.
          * <p>
-         * The username is the localpart of the entities JID, e.g. <code>localpart@example.org</code>.
+         * The username is usually the localpart of the clients JID. But some SASL mechanisms or services may require a different
+         * format (e.g. the full JID) as used authorization identity.
          * </p>
          *
-         * @param username
-         * @param password
+         * @param username the username or authorization identity
+         * @param password the password or token used to authenticate
          * @return a reference to this builder.
          */
-        public B setUsernameAndPassword(String username, String password) {
+        public B setUsernameAndPassword(CharSequence username, String password) {
             this.username = username;
             this.password = password;
             return getThis();
@@ -431,7 +414,7 @@ public abstract class ConnectionConfiguration {
          * @param serviceName the service name
          * @return a reference to this builder.
          */
-        public B setServiceName(String serviceName) {
+        public B setServiceName(DomainBareJid serviceName) {
             this.serviceName = serviceName;
             return getThis();
         }
@@ -478,7 +461,7 @@ public abstract class ConnectionConfiguration {
 
         /**
          * Sets the TLS security mode used when making the connection. By default,
-         * the mode is {@link SecurityMode#enabled}.
+         * the mode is {@link SecurityMode#ifpossible}.
          *
          * @param securityMode the security mode.
          * @return a reference to this builder.
@@ -577,25 +560,20 @@ public abstract class ConnectionConfiguration {
          * Sets if a {@link Session} will be requested on login if the server supports
          * it. Although this was mandatory on RFC 3921, RFC 6120/6121 don't even
          * mention this part of the protocol.
+         * <p>
+         * Deprecation notice: This setting is no longer required in most cases because Smack processes the 'optional'
+         * element eventually found in the session stream feature. See also <a
+         * href="https://tools.ietf.org/html/draft-cridland-xmpp-session-01">Here Lies Extensible Messaging and Presence
+         * Protocol (XMPP) Session Establishment</a>
+         * </p>
          *
          * @param legacySessionDisabled if a session has to be requested when logging in.
          * @return a reference to this builder.
+         * @deprecated Smack processes the 'optional' element of the session stream feature.
          */
+        @Deprecated
         public B setLegacySessionDisabled(boolean legacySessionDisabled) {
             this.legacySessionDisabled = legacySessionDisabled;
-            return getThis();
-        }
-
-        /**
-         * Sets if the roster will be loaded from the server when logging in. This
-         * is the common behaviour for clients but sometimes clients may want to differ this
-         * or just never do it if not interested in rosters.
-         *
-         * @param rosterLoadedAtLogin if the roster will be loaded from the server when logging in.
-         * @return a reference to this builder.
-         */
-        public B setRosterLoadedAtLogin(boolean rosterLoadedAtLogin) {
-            this.rosterLoadedAtLogin = rosterLoadedAtLogin;
             return getThis();
         }
 
@@ -614,18 +592,8 @@ public abstract class ConnectionConfiguration {
         }
 
         /**
-         * Set the permanent roster store.
-         * 
-         * @return a reference to this builder.
-         */
-        public B setRosterStore(RosterStore store) {
-            rosterStore = store;
-            return getThis();
-        }
-
-        /**
          * Sets if the new connection about to be establish is going to be debugged. By
-         * default the value of {@link SmackConfiguration#DEBUG_ENABLED} is used.
+         * default the value of {@link SmackConfiguration#DEBUG} is used.
          *
          * @param debuggerEnabled if the new connection about to be establish is going to be debugged.
          * @return a reference to this builder.
@@ -644,6 +612,19 @@ public abstract class ConnectionConfiguration {
          */
         public B setSocketFactory(SocketFactory socketFactory) {
             this.socketFactory = socketFactory;
+            return getThis();
+        }
+
+        /**
+         * Allow <code>null</code> or the empty String as username.
+         *
+         * Some SASL mechanisms (e.g. SASL External) may also signal the username (as "authorization identity"), in
+         * which case Smack should not throw an IllegalArgumentException when the username is not set.
+         * 
+         * @return a reference to this builder.
+         */
+        public B allowEmptyOrNullUsernames() {
+            allowEmptyOrNullUsername = true;
             return getThis();
         }
 

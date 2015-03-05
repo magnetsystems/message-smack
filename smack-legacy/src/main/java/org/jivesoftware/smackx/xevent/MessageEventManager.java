@@ -35,8 +35,9 @@ import org.jivesoftware.smack.filter.NotFilter;
 import org.jivesoftware.smack.filter.PacketExtensionFilter;
 import org.jivesoftware.smack.filter.PacketFilter;
 import org.jivesoftware.smack.packet.Message;
-import org.jivesoftware.smack.packet.Packet;
+import org.jivesoftware.smack.packet.Stanza;
 import org.jivesoftware.smackx.xevent.packet.MessageEvent;
+import org.jxmpp.jid.Jid;
 
 /**
  * 
@@ -70,13 +71,13 @@ public class MessageEventManager extends Manager {
     /**
      * Creates a new message event manager.
      *
-     * @param con a XMPPConnection to a XMPP server.
+     * @param con an XMPPConnection to a XMPP server.
      */
     private MessageEventManager(XMPPConnection connection) {
         super(connection);
         // Listens for all message event packets and fire the proper message event listeners.
         connection.addAsyncPacketListener(new PacketListener() {
-            public void processPacket(Packet packet) {
+            public void processPacket(Stanza packet) {
                 Message message = (Message) packet;
                 MessageEvent messageEvent =
                     (MessageEvent) message.getExtension("x", "jabber:x:event");
@@ -85,14 +86,14 @@ public class MessageEventManager extends Manager {
                     for (String eventType : messageEvent.getEventTypes())
                         fireMessageEventRequestListeners(
                             message.getFrom(),
-                            message.getPacketID(),
+                            message.getStanzaId(),
                             eventType.concat("NotificationRequested"));
                 } else
                     // Fire event for notifications of message events
                     for (String eventType : messageEvent.getEventTypes())
                         fireMessageEventNotificationListeners(
                             message.getFrom(),
-                            messageEvent.getPacketID(),
+                            messageEvent.getStanzaId(),
                             eventType.concat("Notification"));
             }
         }, PACKET_FILTER);
@@ -166,7 +167,7 @@ public class MessageEventManager extends Manager {
      * Fires message event request listeners.
      */
     private void fireMessageEventRequestListeners(
-        String from,
+        Jid from,
         String packetID,
         String methodName) {
         try {
@@ -186,7 +187,7 @@ public class MessageEventManager extends Manager {
      * Fires message event notification listeners.
      */
     private void fireMessageEventNotificationListeners(
-        String from,
+        Jid from,
         String packetID,
         String methodName) {
         try {
@@ -208,14 +209,15 @@ public class MessageEventManager extends Manager {
      * @param to the recipient of the notification.
      * @param packetID the id of the message to send.
      * @throws NotConnectedException 
+     * @throws InterruptedException 
      */
-    public void sendDeliveredNotification(String to, String packetID) throws NotConnectedException {
+    public void sendDeliveredNotification(Jid to, String packetID) throws NotConnectedException, InterruptedException {
         // Create the message to send
         Message msg = new Message(to);
         // Create a MessageEvent Package and add it to the message
         MessageEvent messageEvent = new MessageEvent();
         messageEvent.setDelivered(true);
-        messageEvent.setPacketID(packetID);
+        messageEvent.setStanzaId(packetID);
         msg.addExtension(messageEvent);
         // Send the packet
         connection().sendPacket(msg);
@@ -227,14 +229,15 @@ public class MessageEventManager extends Manager {
      * @param to the recipient of the notification.
      * @param packetID the id of the message to send.
      * @throws NotConnectedException 
+     * @throws InterruptedException 
      */
-    public void sendDisplayedNotification(String to, String packetID) throws NotConnectedException {
+    public void sendDisplayedNotification(Jid to, String packetID) throws NotConnectedException, InterruptedException {
         // Create the message to send
         Message msg = new Message(to);
         // Create a MessageEvent Package and add it to the message
         MessageEvent messageEvent = new MessageEvent();
         messageEvent.setDisplayed(true);
-        messageEvent.setPacketID(packetID);
+        messageEvent.setStanzaId(packetID);
         msg.addExtension(messageEvent);
         // Send the packet
         connection().sendPacket(msg);
@@ -246,14 +249,15 @@ public class MessageEventManager extends Manager {
      * @param to the recipient of the notification.
      * @param packetID the id of the message to send.
      * @throws NotConnectedException 
+     * @throws InterruptedException 
      */
-    public void sendComposingNotification(String to, String packetID) throws NotConnectedException {
+    public void sendComposingNotification(Jid to, String packetID) throws NotConnectedException, InterruptedException {
         // Create the message to send
         Message msg = new Message(to);
         // Create a MessageEvent Package and add it to the message
         MessageEvent messageEvent = new MessageEvent();
         messageEvent.setComposing(true);
-        messageEvent.setPacketID(packetID);
+        messageEvent.setStanzaId(packetID);
         msg.addExtension(messageEvent);
         // Send the packet
         connection().sendPacket(msg);
@@ -265,14 +269,15 @@ public class MessageEventManager extends Manager {
      * @param to the recipient of the notification.
      * @param packetID the id of the message to send.
      * @throws NotConnectedException 
+     * @throws InterruptedException 
      */
-    public void sendCancelledNotification(String to, String packetID) throws NotConnectedException {
+    public void sendCancelledNotification(Jid to, String packetID) throws NotConnectedException, InterruptedException {
         // Create the message to send
         Message msg = new Message(to);
         // Create a MessageEvent Package and add it to the message
         MessageEvent messageEvent = new MessageEvent();
         messageEvent.setCancelled(true);
-        messageEvent.setPacketID(packetID);
+        messageEvent.setStanzaId(packetID);
         msg.addExtension(messageEvent);
         // Send the packet
         connection().sendPacket(msg);

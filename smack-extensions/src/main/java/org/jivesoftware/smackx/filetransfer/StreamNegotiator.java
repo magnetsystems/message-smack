@@ -25,11 +25,11 @@ import org.jivesoftware.smack.XMPPException;
 import org.jivesoftware.smack.XMPPException.XMPPErrorException;
 import org.jivesoftware.smack.filter.PacketFilter;
 import org.jivesoftware.smack.packet.IQ;
-import org.jivesoftware.smack.packet.Packet;
+import org.jivesoftware.smack.packet.Stanza;
 import org.jivesoftware.smackx.si.packet.StreamInitiation;
-import org.jivesoftware.smackx.xdata.Form;
 import org.jivesoftware.smackx.xdata.FormField;
 import org.jivesoftware.smackx.xdata.packet.DataForm;
+import org.jxmpp.jid.Jid;
 
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -59,9 +59,9 @@ public abstract class StreamNegotiator {
         response.setTo(streamInitiationOffer.getFrom());
         response.setFrom(streamInitiationOffer.getTo());
         response.setType(IQ.Type.result);
-        response.setPacketID(streamInitiationOffer.getPacketID());
+        response.setStanzaId(streamInitiationOffer.getStanzaId());
 
-        DataForm form = new DataForm(Form.TYPE_SUBMIT);
+        DataForm form = new DataForm(DataForm.Type.submit);
         FormField field = new FormField(
                 FileTransferNegotiator.STREAM_DATA_FIELD_NAME);
         for (String namespace : namespaces) {
@@ -73,7 +73,7 @@ public abstract class StreamNegotiator {
         return response;
     }
 
-    Packet initiateIncomingStream(XMPPConnection connection, StreamInitiation initiation) throws NoResponseException, XMPPErrorException, NotConnectedException  {
+    Stanza initiateIncomingStream(XMPPConnection connection, StreamInitiation initiation) throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException  {
         StreamInitiation response = createInitiationAccept(initiation,
                 getNamespaces());
 
@@ -81,7 +81,7 @@ public abstract class StreamNegotiator {
         PacketCollector collector = connection
                 .createPacketCollectorAndSend(getInitiationPacketFilter(initiation.getFrom(), initiation.getSessionID()), response);
 
-        Packet streamMethodInitiation = collector.nextResultOrThrow();
+        Stanza streamMethodInitiation = collector.nextResultOrThrow();
 
         return streamMethodInitiation;
     }
@@ -95,10 +95,10 @@ public abstract class StreamNegotiator {
      * @return The <b><i>PacketFilter</b></i> that will return the packet relatable to the stream
      *         initiation.
      */
-    public abstract PacketFilter getInitiationPacketFilter(String from, String streamID);
+    public abstract PacketFilter getInitiationPacketFilter(Jid from, String streamID);
 
 
-    abstract InputStream negotiateIncomingStream(Packet streamInitiation) throws XMPPErrorException,
+    abstract InputStream negotiateIncomingStream(Stanza streamInitiation) throws XMPPErrorException,
             InterruptedException, NoResponseException, SmackException;
 
     /**
@@ -135,9 +135,10 @@ public abstract class StreamNegotiator {
      *                       exception will be thrown.
      * @throws SmackException 
      * @throws XMPPException 
+     * @throws InterruptedException 
      */
     public abstract OutputStream createOutgoingStream(String streamID,
-            String initiator, String target) throws XMPPErrorException, NoResponseException, SmackException, XMPPException;
+            Jid initiator, Jid target) throws XMPPErrorException, NoResponseException, SmackException, XMPPException, InterruptedException;
 
     /**
      * Returns the XMPP namespace reserved for this particular type of file

@@ -17,6 +17,8 @@
 package org.jivesoftware.smackx.carbons;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
+import static org.jivesoftware.smack.test.util.CharsequenceEquals.equalsCharSequence;
 
 import java.util.Properties;
 
@@ -24,7 +26,7 @@ import org.jivesoftware.smack.util.PacketParserUtils;
 import org.jivesoftware.smackx.ExperimentalInitializerTest;
 import org.jivesoftware.smackx.carbons.packet.CarbonExtension;
 import org.jivesoftware.smackx.carbons.provider.CarbonManagerProvider;
-import org.jivesoftware.smackx.forward.Forwarded;
+import org.jivesoftware.smackx.forward.packet.Forwarded;
 import org.junit.Test;
 import org.xmlpull.v1.XmlPullParser;
 
@@ -62,7 +64,7 @@ public class CarbonTest extends ExperimentalInitializerTest {
         assertEquals(null, fwd.getDelayInformation());
         
         // check message
-        assertEquals("romeo@montague.com", fwd.getForwardedPacket().getFrom());
+        assertThat("romeo@montague.com", equalsCharSequence(fwd.getForwardedPacket().getFrom()));
 
         // check end of tag
         assertEquals(XmlPullParser.END_TAG, parser.getEventType());

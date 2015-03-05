@@ -58,7 +58,7 @@ public class ContentNegotiator extends JingleNegotiator {
         transportNegotiators = new ArrayList<TransportNegotiator>();
     }
 
-    public List<IQ> dispatchIncomingPacket(IQ iq, String id) throws XMPPException, SmackException {
+    public List<IQ> dispatchIncomingPacket(IQ iq, String id) throws XMPPException, SmackException, InterruptedException {
         List<IQ> responses = new ArrayList<IQ>();
 
         // First only process IQ packets that contain <content> stanzas that
@@ -70,8 +70,8 @@ public class ContentNegotiator extends JingleNegotiator {
                 // TODO getState().eventError(iq);
             } else if (iq.getType().equals(IQ.Type.result)) {
                 // Process ACKs
-                if (isExpectedId(iq.getPacketID())) {
-                    removeExpectedId(iq.getPacketID());
+                if (isExpectedId(iq.getStanzaId())) {
+                    removeExpectedId(iq.getStanzaId());
                 }
             } else if (iq instanceof Jingle) {
                 Jingle jingle = (Jingle) iq;
@@ -255,7 +255,7 @@ public class ContentNegotiator extends JingleNegotiator {
         return result;
     }
 
-    public void triggerContentEstablished() throws NotConnectedException {
+    public void triggerContentEstablished() throws NotConnectedException, InterruptedException {
 
         PayloadType bestCommonAudioPt = getMediaNegotiator().getBestCommonAudioPt();
         TransportCandidate bestRemoteCandidate = getTransportNegotiator().getBestRemoteCandidate();
@@ -268,8 +268,9 @@ public class ContentNegotiator extends JingleNegotiator {
     /**
      * Trigger a session established event.
      * @throws NotConnectedException 
+     * @throws InterruptedException 
      */
-    private void triggerContentEstablished(PayloadType pt, TransportCandidate rc, TransportCandidate lc) throws NotConnectedException {
+    private void triggerContentEstablished(PayloadType pt, TransportCandidate rc, TransportCandidate lc) throws NotConnectedException, InterruptedException {
 
         // Let the session know that we've established a content/media segment.
         JingleSession session = getSession();

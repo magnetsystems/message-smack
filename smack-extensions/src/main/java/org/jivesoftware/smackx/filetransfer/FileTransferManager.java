@@ -17,17 +17,14 @@
 package org.jivesoftware.smackx.filetransfer;
 
 import org.jivesoftware.smack.Manager;
-import org.jivesoftware.smack.PacketListener;
 import org.jivesoftware.smack.SmackException.NotConnectedException;
 import org.jivesoftware.smack.XMPPConnection;
-import org.jivesoftware.smack.filter.AndFilter;
-import org.jivesoftware.smack.filter.IQTypeFilter;
-import org.jivesoftware.smack.filter.PacketTypeFilter;
+import org.jivesoftware.smack.iqrequest.AbstractIqRequestHandler;
+import org.jivesoftware.smack.iqrequest.IQRequestHandler.Mode;
 import org.jivesoftware.smack.packet.IQ;
-import org.jivesoftware.smack.packet.Packet;
 import org.jivesoftware.smack.packet.XMPPError;
 import org.jivesoftware.smackx.si.packet.StreamInitiation;
-import org.jxmpp.util.XmppStringUtils;
+import org.jxmpp.jid.FullJid;
 
 import java.util.List;
 import java.util.Map;
@@ -36,7 +33,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * The file transfer manager class handles the sending and recieving of files.
- * To send a file invoke the {@link #createOutgoingFileTransfer(String)} method.
+ * To send a file invoke the {@link #createOutgoingFileTransfer(FullJid)} method.
  * <p>
  * And to recieve a file add a file transfer listener to the manager. The
  * listener will notify you when there is a new file transfer request. To create
@@ -73,15 +70,18 @@ public class FileTransferManager extends Manager {
 		super(connection);
 		this.fileTransferNegotiator = FileTransferNegotiator
 				.getInstanceFor(connection);
-        connection.addAsyncPacketListener(new PacketListener() {
-            public void processPacket(Packet packet) {
+        connection.registerIQRequestHandler(new AbstractIqRequestHandler(StreamInitiation.ELEMENT,
+                        StreamInitiation.NAMESPACE, IQ.Type.set, Mode.async) {
+            @Override
+            public IQ handleIQRequest(IQ packet) {
                 StreamInitiation si = (StreamInitiation) packet;
                 final FileTransferRequest request = new FileTransferRequest(FileTransferManager.this, si);
                 for (final FileTransferListener listener : listeners) {
                             listener.fileTransferRequest(request);
                 }
+                return null;
             }
-        }, new AndFilter(new PacketTypeFilter(StreamInitiation.class), IQTypeFilter.SET));
+        });
 	}
 
 	/**
@@ -117,15 +117,12 @@ public class FileTransferManager extends Manager {
 	 * @return The send file object on which the negotiated transfer can be run.
 	 * @exception IllegalArgumentException if userID is null or not a full JID
 	 */
-	public OutgoingFileTransfer createOutgoingFileTransfer(String userID) {
-        if (userID == null) {
-            throw new IllegalArgumentException("userID was null");
-        }
+	public OutgoingFileTransfer createOutgoingFileTransfer(FullJid userID) {
         // We need to create outgoing file transfers with a full JID since this method will later
         // use XEP-0095 to negotiate the stream. This is done with IQ stanzas that need to be addressed to a full JID
         // in order to reach an client entity.
-        else if (!XmppStringUtils.isFullJID(userID)) {
-            throw new IllegalArgumentException("The provided user id was not a full JID (i.e. with resource part)");
+        if (userID == null) {
+            throw new IllegalArgumentException("userID was null");
         }
 
 		return new OutgoingFileTransfer(connection().getUser(), userID,
@@ -163,8 +160,9 @@ public class FileTransferManager extends Manager {
 	 * </p>
 	 * @param request
 	 * @throws NotConnectedException
+	 * @throws InterruptedException 
 	 */
-	protected void rejectIncomingFileTransfer(FileTransferRequest request) throws NotConnectedException {
+	protected void rejectIncomingFileTransfer(FileTransferRequest request) throws NotConnectedException, InterruptedException {
 		StreamInitiation initiation = request.getStreamInitiation();
 
         // Reject as specified in XEP-95 4.2. Note that this is not to be confused with the Socks 5

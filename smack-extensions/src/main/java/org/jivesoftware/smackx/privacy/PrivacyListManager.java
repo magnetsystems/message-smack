@@ -23,6 +23,7 @@ import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 
+import org.jivesoftware.smack.AbstractConnectionListener;
 import org.jivesoftware.smack.SmackException.NoResponseException;
 import org.jivesoftware.smack.SmackException.NotConnectedException;
 import org.jivesoftware.smack.XMPPConnection;
@@ -32,25 +33,31 @@ import org.jivesoftware.smack.PacketListener;
 import org.jivesoftware.smack.XMPPConnectionRegistry;
 import org.jivesoftware.smack.XMPPException.XMPPErrorException;
 import org.jivesoftware.smack.filter.AndFilter;
+import org.jivesoftware.smack.filter.IQResultReplyFilter;
 import org.jivesoftware.smack.filter.IQTypeFilter;
 import org.jivesoftware.smack.filter.PacketFilter;
 import org.jivesoftware.smack.filter.PacketTypeFilter;
+import org.jivesoftware.smack.iqrequest.AbstractIqRequestHandler;
+import org.jivesoftware.smack.iqrequest.IQRequestHandler.Mode;
 import org.jivesoftware.smack.packet.IQ;
-import org.jivesoftware.smack.packet.Packet;
+import org.jivesoftware.smack.packet.Stanza;
 import org.jivesoftware.smackx.disco.ServiceDiscoveryManager;
+import org.jivesoftware.smackx.privacy.filter.SetActiveListFilter;
+import org.jivesoftware.smackx.privacy.filter.SetDefaultListFilter;
 import org.jivesoftware.smackx.privacy.packet.Privacy;
 import org.jivesoftware.smackx.privacy.packet.PrivacyItem;
 
 /**
  * A PrivacyListManager is used by XMPP clients to block or allow communications from other
- * users. Use the manager to: <ul>
+ * users. Use the manager to:
+ * <ul>
  *      <li>Retrieve privacy lists.
  *      <li>Add, remove, and edit privacy lists.
  *      <li>Set, change, or decline active lists.
  *      <li>Set, change, or decline the default list (i.e., the list that is active by default).
  * </ul>
  * Privacy Items can handle different kind of permission communications based on JID, group, 
- * subscription type or globally (@see PrivacyItem).
+ * subscription type or globally (see {@link PrivacyItem}).
  * 
  * @author Francisco Vives
  * @see <a href="http://xmpp.org/extensions/xep-0016.html">XEP-16: Privacy Lists</a>
@@ -58,8 +65,9 @@ import org.jivesoftware.smackx.privacy.packet.PrivacyItem;
 public class PrivacyListManager extends Manager {
     public static final String NAMESPACE = Privacy.NAMESPACE;
 
-    private static final PacketFilter PACKET_FILTER = new AndFilter(IQTypeFilter.SET,
-                    new PacketTypeFilter(Privacy.class));
+    public static final PacketFilter PRIVACY_FILTER = new PacketTypeFilter(Privacy.class);
+
+    private static final PacketFilter PRIVACY_RESULT = new AndFilter(IQTypeFilter.RESULT, PRIVACY_FILTER);
 
     // Keep the list of instances of this class.
     private static final Map<XMPPConnection, PrivacyListManager> INSTANCES = new WeakHashMap<XMPPConnection, PrivacyListManager>();
@@ -75,6 +83,10 @@ public class PrivacyListManager extends Manager {
         });
     }
 
+    // TODO implement: private final Map<String, PrivacyList> cachedPrivacyLists = new HashMap<>();
+    private volatile String cachedActiveListName;
+    private volatile String cachedDefaultListName;
+
     /**
      * Creates a new privacy manager to maintain the communication privacy. Note: no
      * information is sent to or received from the server until you attempt to 
@@ -82,13 +94,14 @@ public class PrivacyListManager extends Manager {
      *
      * @param connection the XMPP connection.
      */
-	private PrivacyListManager(final XMPPConnection connection) {
+	private PrivacyListManager(XMPPConnection connection) {
         super(connection);
 
-        connection.addSyncPacketListener(new PacketListener() {
+        connection.registerIQRequestHandler(new AbstractIqRequestHandler(Privacy.ELEMENT, Privacy.NAMESPACE,
+                        IQ.Type.set, Mode.sync) {
             @Override
-            public void processPacket(Packet packet) throws NotConnectedException {
-                Privacy privacy = (Privacy) packet;
+            public IQ handleIQRequest(IQ iqRequest) {
+                Privacy privacy = (Privacy) iqRequest;
 
                 // Notifies the event to the listeners.
                 for (PrivacyListListener listener : listeners) {
@@ -105,11 +118,84 @@ public class PrivacyListManager extends Manager {
                     }
                 }
 
-                // Send a result package acknowledging the reception of a privacy package.
-                IQ iq = IQ.createResultIQ(privacy);
-                connection().sendPacket(iq);
+                return IQ.createResultIQ(privacy);
             }
-        }, PACKET_FILTER);
+        });
+
+        // cached(Active|Default)ListName handling
+        connection.addPacketSendingListener(new PacketListener() {
+            @Override
+            public void processPacket(Stanza packet) throws NotConnectedException {
+                XMPPConnection connection = connection();
+                Privacy privacy = (Privacy) packet;
+                PacketFilter iqResultReplyFilter = new IQResultReplyFilter(privacy, connection);
+                final String activeListName = privacy.getActiveName();
+                final boolean declinceActiveList = privacy.isDeclineActiveList();
+                connection.addOneTimeSyncCallback(new PacketListener() {
+                    @Override
+                    public void processPacket(Stanza packet) throws NotConnectedException {
+                            if (declinceActiveList) {
+                                cachedActiveListName = null;
+                            }
+                            else {
+                                cachedActiveListName = activeListName;
+                            }
+                            return;
+                    }
+                }, iqResultReplyFilter);
+            }
+        }, SetActiveListFilter.INSTANCE);
+        connection.addPacketSendingListener(new PacketListener() {
+            @Override
+            public void processPacket(Stanza packet) throws NotConnectedException {
+                XMPPConnection connection = connection();
+                Privacy privacy = (Privacy) packet;
+                PacketFilter iqResultReplyFilter = new IQResultReplyFilter(privacy, connection);
+                final String defaultListName = privacy.getDefaultName();
+                final boolean declinceDefaultList = privacy.isDeclineDefaultList();
+                connection.addOneTimeSyncCallback(new PacketListener() {
+                    @Override
+                    public void processPacket(Stanza packet) throws NotConnectedException {
+                            if (declinceDefaultList) {
+                                cachedDefaultListName = null;
+                            }
+                            else {
+                                cachedDefaultListName = defaultListName;
+                            }
+                            return;
+                    }
+                }, iqResultReplyFilter);
+            }
+        }, SetDefaultListFilter.INSTANCE);
+        connection.addSyncPacketListener(new PacketListener() {
+            @Override
+            public void processPacket(Stanza packet) throws NotConnectedException {
+                Privacy privacy = (Privacy) packet;
+                // If a privacy IQ result stanza has an active or default list name set, then we use that
+                // as cached list name.
+                String activeList = privacy.getActiveName();
+                if (activeList != null) {
+                    cachedActiveListName = activeList;
+                }
+                String defaultList = privacy.getDefaultName();
+                if (defaultList != null) {
+                    cachedDefaultListName = defaultList;
+                }
+            }
+        }, PRIVACY_RESULT);
+        connection.addConnectionListener(new AbstractConnectionListener() {
+            @Override
+            public void authenticated(XMPPConnection connection, boolean resumed) {
+                // No need to reset the cache if the connection got resumed.
+                if (resumed) {
+                    return;
+                }
+                cachedActiveListName = cachedDefaultListName = null;
+            }
+        });
+
+        // XEP-0016 § 3.
+        ServiceDiscoveryManager.getInstanceFor(connection).addFeature(NAMESPACE);
     }
 
     /**
@@ -138,8 +224,9 @@ public class PrivacyListManager extends Manager {
 	 * @throws XMPPErrorException 
 	 * @throws NoResponseException 
 	 * @throws NotConnectedException 
+	 * @throws InterruptedException 
 	 */ 
-	private Privacy getRequest(Privacy requestPrivacy) throws NoResponseException, XMPPErrorException, NotConnectedException  {
+	private Privacy getRequest(Privacy requestPrivacy) throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException  {
 		// The request is a get iq type
 		requestPrivacy.setType(Privacy.Type.get);
 
@@ -156,8 +243,9 @@ public class PrivacyListManager extends Manager {
      * @throws XMPPErrorException 
      * @throws NoResponseException 
      * @throws NotConnectedException 
+     * @throws InterruptedException 
      */
-    private Packet setRequest(Privacy requestPrivacy) throws NoResponseException, XMPPErrorException, NotConnectedException  {
+    private Stanza setRequest(Privacy requestPrivacy) throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException  {
         // The request is a get iq type
         requestPrivacy.setType(Privacy.Type.set);
 
@@ -171,8 +259,9 @@ public class PrivacyListManager extends Manager {
 	 * @throws XMPPErrorException 
 	 * @throws NoResponseException 
 	 * @throws NotConnectedException 
+	 * @throws InterruptedException 
 	 */ 
-	private Privacy getPrivacyWithListNames() throws NoResponseException, XMPPErrorException, NotConnectedException {
+	private Privacy getPrivacyWithListNames() throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
 		// The request of the list is an empty privacy message
 		Privacy request = new Privacy();
 		
@@ -187,15 +276,30 @@ public class PrivacyListManager extends Manager {
      * @throws XMPPErrorException 
      * @throws NoResponseException 
      * @throws NotConnectedException 
+     * @throws InterruptedException 
      */ 
-    public PrivacyList getActiveList() throws NoResponseException, XMPPErrorException, NotConnectedException  {
+    public PrivacyList getActiveList() throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException  {
         Privacy privacyAnswer = this.getPrivacyWithListNames();
         String listName = privacyAnswer.getActiveName();
-        boolean isDefaultAndActive = privacyAnswer.getActiveName() != null
-                && privacyAnswer.getDefaultName() != null
-                && privacyAnswer.getActiveName().equals(
-                privacyAnswer.getDefaultName());
+        boolean isDefaultAndActive = listName != null && listName.equals(privacyAnswer.getDefaultName());
         return new PrivacyList(true, isDefaultAndActive, listName, getPrivacyListItems(listName));
+    }
+
+    /**
+     * Get the name of the active list.
+     * 
+     * @return the name of the active list or null if there is none set.
+     * @throws NoResponseException
+     * @throws XMPPErrorException
+     * @throws NotConnectedException
+     * @throws InterruptedException 
+     * @since 4.1
+     */
+    public String getActiveListName() throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
+        if (cachedActiveListName != null) {
+            return cachedActiveListName;
+        }
+        return getPrivacyWithListNames().getActiveName();
     }
 
     /**
@@ -205,15 +309,52 @@ public class PrivacyListManager extends Manager {
      * @throws XMPPErrorException 
      * @throws NoResponseException 
      * @throws NotConnectedException 
+     * @throws InterruptedException 
      */ 
-    public PrivacyList getDefaultList() throws NoResponseException, XMPPErrorException, NotConnectedException {
+    public PrivacyList getDefaultList() throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
         Privacy privacyAnswer = this.getPrivacyWithListNames();
         String listName = privacyAnswer.getDefaultName();
-        boolean isDefaultAndActive = privacyAnswer.getActiveName() != null
-                && privacyAnswer.getDefaultName() != null
-                && privacyAnswer.getActiveName().equals(
-                privacyAnswer.getDefaultName());
+        boolean isDefaultAndActive = listName != null && listName.equals(privacyAnswer.getActiveName());
         return new PrivacyList(isDefaultAndActive, true, listName, getPrivacyListItems(listName));
+    }
+
+    /**
+     * Get the name of the default list.
+     *
+     * @return the name of the default list or null if there is none set.
+     * @throws NoResponseException
+     * @throws XMPPErrorException
+     * @throws NotConnectedException
+     * @throws InterruptedException 
+     * @since 4.1
+     */
+    public String getDefaultListName() throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
+        if (cachedDefaultListName != null) {
+            return cachedDefaultListName;
+        }
+        return getPrivacyWithListNames().getDefaultName();
+    }
+
+    /**
+     * Returns the name of the effective privacy list.
+     * <p>
+     * The effective privacy list is the one that is currently enforced on the connection. It's either the active
+     * privacy list, or, if the active privacy list is not set, the default privacy list.
+     * </p>
+     *
+     * @return the name of the effective privacy list or null if there is none set.
+     * @throws NoResponseException
+     * @throws XMPPErrorException
+     * @throws NotConnectedException
+     * @throws InterruptedException 
+     * @since 4.1
+     */
+    public String getEffectiveListName() throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
+        String activeListName = getActiveListName();
+        if (activeListName != null) {
+            return activeListName;
+        }
+        return getDefaultListName();
     }
 
     /**
@@ -224,8 +365,9 @@ public class PrivacyListManager extends Manager {
      * @throws XMPPErrorException 
      * @throws NoResponseException 
      * @throws NotConnectedException 
+     * @throws InterruptedException 
      */ 
-    private List<PrivacyItem> getPrivacyListItems(String listName) throws NoResponseException, XMPPErrorException, NotConnectedException  {
+    private List<PrivacyItem> getPrivacyListItems(String listName) throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException  {
         // The request of the list is an privacy message with an empty list
         Privacy request = new Privacy();
         request.setPrivacyList(listName, new ArrayList<PrivacyItem>());
@@ -244,8 +386,9 @@ public class PrivacyListManager extends Manager {
 	 * @throws XMPPErrorException 
 	 * @throws NoResponseException 
 	 * @throws NotConnectedException 
+	 * @throws InterruptedException 
 	 */ 
-	public PrivacyList getPrivacyList(String listName) throws NoResponseException, XMPPErrorException, NotConnectedException  {
+	public PrivacyList getPrivacyList(String listName) throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException  {
         return new PrivacyList(false, false, listName, getPrivacyListItems(listName));
 	}
 
@@ -256,8 +399,9 @@ public class PrivacyListManager extends Manager {
      * @throws XMPPErrorException 
      * @throws NoResponseException 
      * @throws NotConnectedException 
+     * @throws InterruptedException 
      */ 
-    public List<PrivacyList> getPrivacyLists() throws NoResponseException, XMPPErrorException, NotConnectedException {
+    public List<PrivacyList> getPrivacyLists() throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
         Privacy privacyAnswer = getPrivacyWithListNames();
         Set<String> names = privacyAnswer.getPrivacyListNames();
         List<PrivacyList> lists = new ArrayList<>(names.size());
@@ -277,8 +421,9 @@ public class PrivacyListManager extends Manager {
 	 * @throws XMPPErrorException 
 	 * @throws NoResponseException 
 	 * @throws NotConnectedException 
+	 * @throws InterruptedException 
 	 */ 
-	public void setActiveListName(String listName) throws NoResponseException, XMPPErrorException, NotConnectedException {
+	public void setActiveListName(String listName) throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
 		// The request of the list is an privacy message with an empty list
 		Privacy request = new Privacy();
 		request.setActiveName(listName);
@@ -292,8 +437,9 @@ public class PrivacyListManager extends Manager {
 	 * @throws XMPPErrorException 
 	 * @throws NoResponseException 
 	 * @throws NotConnectedException 
+	 * @throws InterruptedException 
 	 */ 
-	public void declineActiveList() throws NoResponseException, XMPPErrorException, NotConnectedException {
+	public void declineActiveList() throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
 		// The request of the list is an privacy message with an empty list
 		Privacy request = new Privacy();
 		request.setDeclineActiveList(true);
@@ -309,8 +455,9 @@ public class PrivacyListManager extends Manager {
 	 * @throws XMPPErrorException 
 	 * @throws NoResponseException 
 	 * @throws NotConnectedException 
+	 * @throws InterruptedException 
 	 */ 
-	public void setDefaultListName(String listName) throws NoResponseException, XMPPErrorException, NotConnectedException  {
+	public void setDefaultListName(String listName) throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException  {
 		// The request of the list is an privacy message with an empty list
 		Privacy request = new Privacy();
 		request.setDefaultName(listName);
@@ -324,8 +471,9 @@ public class PrivacyListManager extends Manager {
 	 * @throws XMPPErrorException 
 	 * @throws NoResponseException 
 	 * @throws NotConnectedException 
+	 * @throws InterruptedException 
 	 */ 
-	public void declineDefaultList() throws NoResponseException, XMPPErrorException, NotConnectedException {
+	public void declineDefaultList() throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
 		// The request of the list is an privacy message with an empty list
 		Privacy request = new Privacy();
 		request.setDeclineDefaultList(true);
@@ -342,8 +490,9 @@ public class PrivacyListManager extends Manager {
 	 * @throws XMPPErrorException 
 	 * @throws NoResponseException 
 	 * @throws NotConnectedException 
+	 * @throws InterruptedException 
 	 */ 
-	public void createPrivacyList(String listName, List<PrivacyItem> privacyItems) throws NoResponseException, XMPPErrorException, NotConnectedException  {
+	public void createPrivacyList(String listName, List<PrivacyItem> privacyItems) throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException  {
 		updatePrivacyList(listName, privacyItems);
 	}
 
@@ -357,8 +506,9 @@ public class PrivacyListManager extends Manager {
      * @throws XMPPErrorException 
      * @throws NoResponseException 
      * @throws NotConnectedException 
+     * @throws InterruptedException 
      */ 
-    public void updatePrivacyList(String listName, List<PrivacyItem> privacyItems) throws NoResponseException, XMPPErrorException, NotConnectedException  {
+    public void updatePrivacyList(String listName, List<PrivacyItem> privacyItems) throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException  {
         // Build the privacy package to add or update the new list
         Privacy request = new Privacy();
         request.setPrivacyList(listName, privacyItems);
@@ -374,8 +524,9 @@ public class PrivacyListManager extends Manager {
 	 * @throws XMPPErrorException 
 	 * @throws NoResponseException 
 	 * @throws NotConnectedException 
+	 * @throws InterruptedException 
 	 */ 
-	public void deletePrivacyList(String listName) throws NoResponseException, XMPPErrorException, NotConnectedException {
+	public void deletePrivacyList(String listName) throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
 		// The request of the list is an privacy message with an empty list
 		Privacy request = new Privacy();
 		request.setPrivacyList(listName, new ArrayList<PrivacyItem>());
@@ -412,9 +563,9 @@ public class PrivacyListManager extends Manager {
      * @throws XMPPErrorException 
      * @throws NoResponseException 
      * @throws NotConnectedException 
+     * @throws InterruptedException 
      */
-    public boolean isSupported() throws NoResponseException, XMPPErrorException, NotConnectedException{
-        return ServiceDiscoveryManager.getInstanceFor(connection()).supportsFeature(
-                        connection().getServiceName(), NAMESPACE);
+    public boolean isSupported() throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException{
+        return ServiceDiscoveryManager.getInstanceFor(connection()).serverSupportsFeature(NAMESPACE);
     }
 }

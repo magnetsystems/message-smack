@@ -79,7 +79,7 @@ The roster lets you keep track of the availability (presence) of other users.
 Users can be organized into groups such as "Friends" and "Co-workers", and
 then you discover whether each user is online or offline.
 
-Retrieve the roster using the `XMPPConnection.getRoster()` method. The roster
+Retrieve the roster using the `Roster.getInstanceFor(XMPPConnection)` method. The roster
 class allows you to find all the roster entries, the groups they belong to,
 and the current presence status of each entry.
 
@@ -97,7 +97,7 @@ your presence to let people know you're unavailable and "out fishing":
 // Create a new presence. Pass in false to indicate we're unavailable._
 Presence presence = new Presence(Presence.Type.unavailable);
 presence.setStatus("Gone fishing");
-// Send the packet (assume we have a XMPPConnection instance called "con").
+// Send the packet (assume we have an XMPPConnection instance called "con").
 con.sendPacket(presence);
 ```
 

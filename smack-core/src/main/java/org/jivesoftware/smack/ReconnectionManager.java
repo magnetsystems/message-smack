@@ -18,6 +18,7 @@ package org.jivesoftware.smack;
 
 import org.jivesoftware.smack.XMPPException.StreamErrorException;
 import org.jivesoftware.smack.packet.StreamError;
+import org.jivesoftware.smack.util.Async;
 
 import java.lang.ref.WeakReference;
 import java.util.Map;
@@ -155,11 +156,13 @@ public class ReconnectionManager {
                             }
                         }
                         catch (InterruptedException e) {
-                            // We don't need to handle spurious interrupts, in the worst case, this will cause to
-                            // reconnect a few seconds earlier, depending on how many (spurious) interrupts arrive while
-                            // sleep() is called.
-                            LOGGER.log(Level.FINE, "Supurious interrupt", e);
+                            LOGGER.log(Level.FINE, "waiting for reconnection interrupted", e);
+                            break;
                         }
+                    }
+
+                    for (ConnectionListener listener : connection.connectionListeners) {
+                        listener.reconnectingIn(0);
                     }
 
                     // Makes a reconnection attempt
@@ -250,10 +253,8 @@ public class ReconnectionManager {
         if (reconnectionThread != null && reconnectionThread.isAlive())
             return;
 
-        reconnectionThread = new Thread(reconnectionRunnable);
-        reconnectionThread.setName("Smack Reconnection Manager (" + connection.getConnectionCounter() + ')');
-        reconnectionThread.setDaemon(true);
-        reconnectionThread.start();
+        reconnectionThread = Async.go(reconnectionRunnable,
+                        "Smack Reconnection Manager (" + connection.getConnectionCounter() + ')');
     }
 
     private final ConnectionListener connectionListener = new AbstractConnectionListener() {
@@ -264,7 +265,7 @@ public class ReconnectionManager {
         }
 
         @Override
-        public void authenticated(XMPPConnection connection) {
+        public void authenticated(XMPPConnection connection, boolean resumed) {
             done = false;
         }
 

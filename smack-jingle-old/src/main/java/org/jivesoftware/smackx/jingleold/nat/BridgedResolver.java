@@ -48,7 +48,7 @@ public class BridgedResolver extends TransportResolver {
 
     /**
      * Constructor.
-     * A Bridged Resolver need a XMPPConnection to connect to a RTP Bridge.
+     * A Bridged Resolver need an XMPPConnection to connect to a RTP Bridge.
      */
     public BridgedResolver(XMPPConnection connection) {
         super();
@@ -60,8 +60,9 @@ public class BridgedResolver extends TransportResolver {
      * <p/>
      * The BridgedResolver takes the IP addresse and ports of a jmf proxy service.
      * @throws NotConnectedException 
+     * @throws InterruptedException 
      */
-    public synchronized void resolve(JingleSession session) throws XMPPException, NotConnectedException {
+    public synchronized void resolve(JingleSession session) throws XMPPException, NotConnectedException, InterruptedException {
 
         setResolveInit();
 
@@ -98,7 +99,7 @@ public class BridgedResolver extends TransportResolver {
         setResolveEnd();
     }
 
-    public void initialize() throws SmackException, XMPPErrorException {
+    public void initialize() throws SmackException, XMPPErrorException, InterruptedException {
 
         clearCandidates();
 

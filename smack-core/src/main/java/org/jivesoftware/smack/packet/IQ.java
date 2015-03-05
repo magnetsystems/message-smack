@@ -19,6 +19,7 @@ package org.jivesoftware.smack.packet;
 
 import java.util.Locale;
 
+import org.jivesoftware.smack.util.Objects;
 import org.jivesoftware.smack.util.XmlStringBuilder;
 
 /**
@@ -38,15 +39,16 @@ import org.jivesoftware.smack.util.XmlStringBuilder;
  *
  * @author Matt Tucker
  */
-public abstract class IQ extends Packet {
+public abstract class IQ extends Stanza {
 
-    public static final String ELEMENT = "iq";
+    // Don't name this field 'ELEMENT'. When it comes to IQ, ELEMENT is the child element!
+    public static final String IQ_ELEMENT = "iq";
     public static final String QUERY_ELEMENT = "query";
 
     private final String childElementName;
     private final String childElementNamespace;
 
-    protected Type type = Type.get;
+    private Type type = Type.get;
 
     public IQ(IQ iq) {
         super(iq);
@@ -75,15 +77,30 @@ public abstract class IQ extends Packet {
 
     /**
      * Sets the type of the IQ packet.
+     * <p>
+     * Since the type of an IQ must present, an IllegalArgmentException will be thrown when type is
+     * <code>null</code>.
+     * </p>
      *
      * @param type the type of the IQ packet.
      */
     public void setType(Type type) {
-        if (type == null) {
-            this.type = Type.get;
-        }
-        else {
-            this.type = type;
+        this.type = Objects.requireNonNull(type, "type must not be null");
+    }
+
+    /**
+     * Return true if this IQ is a request IQ, i.e. an IQ of type {@link Type#get} or {@link Type#set}.
+     *
+     * @return true if IQ type is 'get' or 'set', false otherwise.
+     * @since 4.1
+     */
+    public boolean isRequestIQ() {
+        switch (type) {
+        case get:
+        case set:
+            return true;
+        default:
+            return false;
         }
     }
 
@@ -98,7 +115,7 @@ public abstract class IQ extends Packet {
     @Override
     public final XmlStringBuilder toXML() {
         XmlStringBuilder buf = new XmlStringBuilder();
-        buf.halfOpenElement(ELEMENT);
+        buf.halfOpenElement(IQ_ELEMENT);
         addCommonAttributes(buf);
         if (type == null) {
             buf.attribute("type", "get");
@@ -108,7 +125,7 @@ public abstract class IQ extends Packet {
         }
         buf.rightAngleBracket();
         buf.append(getChildElementXML());
-        buf.closeElement(ELEMENT);
+        buf.closeElement(IQ_ELEMENT);
         return buf;
     }
 
@@ -224,34 +241,43 @@ public abstract class IQ extends Packet {
      *      {@link Type#get IQ.Type.get} or {@link Type#set IQ.Type.set}.
      * @return a new {@link Type#error IQ.Type.error} IQ based on the originating IQ.
      */
-    public static IQ createErrorResponse(final IQ request, final XMPPError error) {
+    public static ErrorIQ createErrorResponse(final IQ request, final XMPPError error) {
         if (!(request.getType() == Type.get || request.getType() == Type.set)) {
             throw new IllegalArgumentException(
                     "IQ must be of type 'set' or 'get'. Original IQ: " + request.toXML());
         }
-        final IQ result = new ErrorIQ(error);
-        result.setPacketID(request.getPacketID());
+        final ErrorIQ result = new ErrorIQ(error);
+        result.setStanzaId(request.getStanzaId());
         result.setFrom(request.getTo());
         result.setTo(request.getFrom());
         return result;
     }
 
     /**
-     * A enum to represent the type of the IQ packet. The types are:
-     *
-     * <ul>
-     *      <li>IQ.Type.get
-     *      <li>IQ.Type.set
-     *      <li>IQ.Type.result
-     *      <li>IQ.Type.error
-     * </ul>
+     * A enum to represent the type of the IQ stanza.
      */
     public enum Type {
 
+        /**
+         * The IQ stanza requests information, inquires about what data is needed in order to complete further operations, etc.
+         */
         get,
+
+        /**
+         * The IQ stanza provides data that is needed for an operation to be completed, sets new values, replaces existing values, etc.
+         */
         set,
+
+        /**
+         * The IQ stanza is a response to a successful get or set request.
+         */
         result,
-        error;
+
+        /**
+         * The IQ stanza reports an error that has occurred regarding processing or delivery of a get or set request.
+         */
+        error,
+        ;
 
         /**
          * Converts a String into the corresponding types. Valid String values

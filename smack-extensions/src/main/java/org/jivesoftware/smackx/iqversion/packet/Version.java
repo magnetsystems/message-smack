@@ -19,31 +19,13 @@ package org.jivesoftware.smackx.iqversion.packet;
 
 
 import org.jivesoftware.smack.packet.IQ;
-import org.jivesoftware.smack.packet.Packet;
+import org.jivesoftware.smack.packet.Stanza;
+import org.jivesoftware.smack.util.StringUtils;
+import org.jxmpp.jid.Jid;
 
 /**
  * A Version IQ packet, which is used by XMPP clients to discover version information
  * about the software running at another entity's JID.<p>
- *
- * An example to discover the version of the server:
- * <pre>
- * // Request the version from the server.
- * Version versionRequest = new Version();
- * timeRequest.setType(IQ.Type.get);
- * timeRequest.setTo("example.com");
- *
- * // Create a packet collector to listen for a response.
- * PacketCollector collector = con.createPacketCollector(
- *                new PacketIDFilter(versionRequest.getPacketID()));
- *
- * con.sendPacket(versionRequest);
- *
- * // Wait up to 5 seconds for a result.
- * IQ result = (IQ)collector.nextResult(5000);
- * if (result != null && result.getType() == IQ.Type.result) {
- *     Version versionResult = (Version)result;
- *     // Do something with result...
- * }</pre><p>
  *
  * @author Gaston Dombiak
  */
@@ -67,7 +49,7 @@ public class Version extends IQ {
      * 
      * @param to the jid where to request version from
      */
-    public Version(String to) {
+    public Version(Jid to) {
         this();
         setTo(to);
     }
@@ -85,16 +67,9 @@ public class Version extends IQ {
      */
     public Version(String name, String version, String os) {
         super(ELEMENT, NAMESPACE);
-        if (name == null)
-        {
-            throw new IllegalArgumentException("name must not be null");
-        }
-        if (version == null) {
-            throw new IllegalArgumentException("version must not be null");
-        }
         this.setType(IQ.Type.result);
-        this.name = name;
-        this.version = version;
+        this.name = StringUtils.requireNotNullOrEmpty(name, "name must not be null");
+        this.version = StringUtils.requireNotNullOrEmpty(version, "version must not be null");
         this.os = os;
     }
 
@@ -153,9 +128,9 @@ public class Version extends IQ {
         return xml;
     }
 
-    public static Version createResultFor(Packet request, Version version) {
+    public static Version createResultFor(Stanza request, Version version) {
         Version result = new Version(version);
-        result.setPacketID(request.getPacketID());
+        result.setStanzaId(request.getStanzaId());
         result.setTo(request.getFrom());
         return result;
     }

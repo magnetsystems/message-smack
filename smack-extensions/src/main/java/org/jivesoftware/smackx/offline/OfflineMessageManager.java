@@ -27,7 +27,7 @@ import org.jivesoftware.smack.filter.PacketExtensionFilter;
 import org.jivesoftware.smack.filter.PacketFilter;
 import org.jivesoftware.smack.filter.PacketTypeFilter;
 import org.jivesoftware.smack.packet.Message;
-import org.jivesoftware.smack.packet.Packet;
+import org.jivesoftware.smack.packet.Stanza;
 import org.jivesoftware.smackx.disco.ServiceDiscoveryManager;
 import org.jivesoftware.smackx.disco.packet.DiscoverInfo;
 import org.jivesoftware.smackx.disco.packet.DiscoverItems;
@@ -61,7 +61,7 @@ public class OfflineMessageManager {
     private final XMPPConnection connection;
 
     private static final PacketFilter PACKET_FILTER = new AndFilter(new PacketExtensionFilter(
-                    new OfflineMessageInfo()), new PacketTypeFilter(Message.class));
+                    new OfflineMessageInfo()), PacketTypeFilter.MESSAGE);
 
     public OfflineMessageManager(XMPPConnection connection) {
         this.connection = connection;
@@ -76,9 +76,10 @@ public class OfflineMessageManager {
      * @throws XMPPErrorException If the user is not allowed to make this request.
      * @throws NoResponseException if there was no response from the server.
      * @throws NotConnectedException 
+     * @throws InterruptedException 
      */
-    public boolean supportsFlexibleRetrieval() throws NoResponseException, XMPPErrorException, NotConnectedException {
-        return ServiceDiscoveryManager.getInstanceFor(connection).supportsFeature(connection.getServiceName(), namespace);
+    public boolean supportsFlexibleRetrieval() throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
+        return ServiceDiscoveryManager.getInstanceFor(connection).serverSupportsFeature(namespace);
     }
 
     /**
@@ -89,8 +90,9 @@ public class OfflineMessageManager {
      *                       not support offline message retrieval.
      * @throws NoResponseException if there was no response from the server.
      * @throws NotConnectedException 
+     * @throws InterruptedException 
      */
-    public int getMessageCount() throws NoResponseException, XMPPErrorException, NotConnectedException {
+    public int getMessageCount() throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
         DiscoverInfo info = ServiceDiscoveryManager.getInstanceFor(connection).discoverInfo(null,
                 namespace);
         Form extendedInfo = Form.getFormFrom(info);
@@ -112,8 +114,9 @@ public class OfflineMessageManager {
      *                       not support offline message retrieval.
      * @throws NoResponseException if there was no response from the server.
      * @throws NotConnectedException 
+     * @throws InterruptedException 
      */
-    public List<OfflineMessageHeader> getHeaders() throws NoResponseException, XMPPErrorException, NotConnectedException {
+    public List<OfflineMessageHeader> getHeaders() throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
         List<OfflineMessageHeader> answer = new ArrayList<OfflineMessageHeader>();
         DiscoverItems items = ServiceDiscoveryManager.getInstanceFor(connection).discoverItems(
                 null, namespace);
@@ -136,8 +139,9 @@ public class OfflineMessageManager {
      *                       not support offline message retrieval.
      * @throws NoResponseException if there was no response from the server.
      * @throws NotConnectedException 
+     * @throws InterruptedException 
      */
-    public List<Message> getMessages(final List<String> nodes) throws NoResponseException, XMPPErrorException, NotConnectedException {
+    public List<Message> getMessages(final List<String> nodes) throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
         List<Message> messages = new ArrayList<Message>();
         OfflineMessageRequest request = new OfflineMessageRequest();
         for (String node : nodes) {
@@ -147,7 +151,7 @@ public class OfflineMessageManager {
         }
         // Filter offline messages that were requested by this request
         PacketFilter messageFilter = new AndFilter(PACKET_FILTER, new PacketFilter() {
-            public boolean accept(Packet packet) {
+            public boolean accept(Stanza packet) {
                 OfflineMessageInfo info = (OfflineMessageInfo) packet.getExtension("offline",
                         namespace);
                 return nodes.contains(info.getNode());
@@ -180,38 +184,33 @@ public class OfflineMessageManager {
      *                       not support offline message retrieval.
      * @throws NoResponseException if there was no response from the server.
      * @throws NotConnectedException 
+     * @throws InterruptedException 
      */
-    public List<Message> getMessages() throws NoResponseException, XMPPErrorException, NotConnectedException {
-        List<Message> messages = new ArrayList<Message>();
+    public List<Message> getMessages() throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
         OfflineMessageRequest request = new OfflineMessageRequest();
         request.setFetch(true);
 
-        PacketCollector messageCollector = connection.createPacketCollector(PACKET_FILTER);
         PacketCollector resultCollector = connection.createPacketCollectorAndSend(request);
+        PacketCollector.Configuration messageCollectorConfiguration = PacketCollector.newConfiguration().setPacketFilter(PACKET_FILTER).setCollectorToReset(resultCollector);
+        PacketCollector messageCollector = connection.createPacketCollector(messageCollectorConfiguration);
 
+        List<Message> messages = null;
         try {
-            // Collect the received offline messages
-            Message message = messageCollector.nextResult();
-            while (message != null) {
-                messages.add(message);
-                // It is important that we query the resultCollector before the messageCollector
-                Packet result = resultCollector.pollResultOrThrow();
-                message = messageCollector.pollResult();
-                if (message == null && result != null) {
-                    // No new messages, but we have a non-error IQ response, we are done
-                    return messages;
-                } else if (message != null) {
-                    // We have received a message without waiting, great, continue to add this message and proceed with
-                    // the loop
-                    continue;
-                }
-                message = messageCollector.nextResult();
-            }
             resultCollector.nextResultOrThrow();
+            // Be extra safe, cancel the message collector right here so that it does not collector
+            // other messages that eventually match (although I've no idea how this could happen in
+            // case of XEP-13).
+            messageCollector.cancel();
+            messages = new ArrayList<>(messageCollector.getCollectedCount());
+            Message message;
+            while ((message = messageCollector.pollResult()) != null) {
+                messages.add(message);
+            }
         }
         finally {
+            // Ensure that the message collector is canceled even if nextResultOrThrow threw. It
+            // doesn't matter if we cancel the message collector twice
             messageCollector.cancel();
-            resultCollector.cancel();
         }
         return messages;
     }
@@ -225,8 +224,9 @@ public class OfflineMessageManager {
      *                       not support offline message retrieval.
      * @throws NoResponseException if there was no response from the server.
      * @throws NotConnectedException 
+     * @throws InterruptedException 
      */
-    public void deleteMessages(List<String> nodes) throws NoResponseException, XMPPErrorException, NotConnectedException {
+    public void deleteMessages(List<String> nodes) throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
         OfflineMessageRequest request = new OfflineMessageRequest();
         for (String node : nodes) {
             OfflineMessageRequest.Item item = new OfflineMessageRequest.Item(node);
@@ -243,8 +243,9 @@ public class OfflineMessageManager {
      *                       not support offline message retrieval.
      * @throws NoResponseException if there was no response from the server.
      * @throws NotConnectedException 
+     * @throws InterruptedException 
      */
-    public void deleteMessages() throws NoResponseException, XMPPErrorException, NotConnectedException {
+    public void deleteMessages() throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
         OfflineMessageRequest request = new OfflineMessageRequest();
         request.setPurge(true);
         connection.createPacketCollectorAndSend(request).nextResultOrThrow();

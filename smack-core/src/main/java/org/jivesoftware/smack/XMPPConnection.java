@@ -21,22 +21,24 @@ import org.jivesoftware.smack.SmackException.NoResponseException;
 import org.jivesoftware.smack.SmackException.NotConnectedException;
 import org.jivesoftware.smack.filter.IQReplyFilter;
 import org.jivesoftware.smack.filter.PacketFilter;
+import org.jivesoftware.smack.iqrequest.IQRequestHandler;
 import org.jivesoftware.smack.packet.IQ;
-import org.jivesoftware.smack.packet.Packet;
+import org.jivesoftware.smack.packet.Stanza;
 import org.jivesoftware.smack.packet.PacketExtension;
 import org.jivesoftware.smack.packet.PlainStreamElement;
-import org.jivesoftware.smack.rosterstore.RosterStore;
+import org.jxmpp.jid.DomainBareJid;
+import org.jxmpp.jid.FullJid;
 
 /**
- * The abstract XMPPConnection class provides an interface for connections to a XMPP server and
+ * The XMPPConnection interface provides an interface for connections to an XMPP server and
  * implements shared methods which are used by the different types of connections (e.g.
- * {@link XMPPTCPConnection} or {@link XMPPBOSHConnection}). To create a connection to a XMPP server
+ * {@link XMPPTCPConnection} or {@link XMPPBOSHConnection}). To create a connection to an XMPP server
  * a simple usage of this API might look like the following:
  * <p>
  * 
  * <pre>
  * // Create a connection to the igniterealtime.org XMPP server.
- * XMPPConnection con = new XMPPTCPConnection("igniterealtime.org");
+ * XMPPTCPConnection con = new XMPPTCPConnection("igniterealtime.org");
  * // Connect to the server
  * con.connect();
  * // Most servers require you to login before performing other tasks.
@@ -52,11 +54,19 @@ import org.jivesoftware.smack.rosterstore.RosterStore;
  * // Disconnect from the server
  * con.disconnect();
  * </pre>
+ * </p>
  * <p>
- * Connections can be reused between connections. This means that an Connection may be connected,
- * disconnected and then connected again. Listeners of the Connection will be retained across
+ * Note that the XMPPConnection interface does intentionally not declare any methods that manipulate
+ * the connection state, e.g. <code>connect()</code>, <code>disconnect()</code>. You should use the
+ * most specific connection type, e.g. <code>XMPPTCPConnection</code> as declared type and use the
+ * XMPPConnection interface when you don't need to manipulate the connection state.
+ * </p>
+ * <p>
+ * XMPPConnections can be reused between connections. This means that an Connection may be connected,
+ * disconnected and then connected again. Listeners of the XMPPConnection will be retained across
  * connections.
- * 
+ * </p>
+ *
  * @author Matt Tucker
  * @author Guenther Niess
  */
@@ -70,7 +80,7 @@ public interface XMPPConnection {
      * 
      * @return the name of the service provided by the XMPP server.
      */
-    public String getServiceName();
+    public DomainBareJid getServiceName();
 
     /**
      * Returns the host name of the server where the XMPP server is running. This would be the
@@ -95,17 +105,17 @@ public interface XMPPConnection {
      * 
      * @return the full XMPP address of the user logged in.
      */
-    public String getUser();
+    public FullJid getUser();
 
     /**
-     * Returns the connection ID for this connection, which is the value set by the server
-     * when opening a XMPP stream. If the server does not set a connection ID, this value
-     * will be null. This value will be <tt>null</tt> if not connected to the server.
+     * Returns the stream ID for this connection, which is the value set by the server
+     * when opening an XMPP stream. This value will be <tt>null</tt> if not connected to the server.
      * 
      * @return the ID of this connection returned from the XMPP server or <tt>null</tt> if
      *      not connected to the server.
+     * @see <a href="http://xmpp.org/rfcs/rfc6120.html#streams-attr-id">RFC 6120 § 4.7.3. id</a>
      */
-    public String getConnectionID();
+    public String getStreamId();
 
     /**
      * Returns true if currently connected to the XMPP server.
@@ -150,8 +160,9 @@ public interface XMPPConnection {
      * 
      * @param packet the packet to send.
      * @throws NotConnectedException 
+     * @throws InterruptedException 
      */
-    public void sendPacket(Packet packet) throws NotConnectedException;
+    public void sendPacket(Stanza packet) throws NotConnectedException, InterruptedException;
 
     /**
      * Send a PlainStreamElement.
@@ -163,22 +174,9 @@ public interface XMPPConnection {
      *
      * @param element
      * @throws NotConnectedException
+     * @throws InterruptedException 
      */
-    public void send(PlainStreamElement element) throws NotConnectedException;
-
-    /**
-     * Returns the roster for the user.
-     * <p>
-     * This method will never return <code>null</code>, instead if the user has not yet logged into
-     * the server or is logged in anonymously all modifying methods of the returned roster object
-     * like {@link Roster#createEntry(String, String, String[])},
-     * {@link Roster#removeEntry(RosterEntry)} , etc. except adding or removing
-     * {@link RosterListener}s will throw an IllegalStateException.
-     * 
-     * @return the user's roster.
-     * @throws IllegalStateException if the connection is anonymous
-     */
-    public Roster getRoster();
+    public void send(PlainStreamElement element) throws NotConnectedException, InterruptedException;
 
     /**
      * Adds a connection listener to this connection that will be notified when
@@ -204,8 +202,9 @@ public interface XMPPConnection {
      * @param packet the packet to filter responses from
      * @return a new packet collector.
      * @throws NotConnectedException 
+     * @throws InterruptedException 
      */
-    public PacketCollector createPacketCollectorAndSend(IQ packet) throws NotConnectedException;
+    public PacketCollector createPacketCollectorAndSend(IQ packet) throws NotConnectedException, InterruptedException;
 
     /**
      * Creates a new packet collector for this connection. A packet filter determines
@@ -216,9 +215,11 @@ public interface XMPPConnection {
      * @param packetFilter the packet filter to use.
      * @param packet the packet to send right after the collector got created
      * @return a new packet collector.
+     * @throws InterruptedException 
+     * @throws NotConnectedException 
      */
-    public PacketCollector createPacketCollectorAndSend(PacketFilter packetFilter, Packet packet)
-                    throws NotConnectedException;
+    public PacketCollector createPacketCollectorAndSend(PacketFilter packetFilter, Stanza packet)
+                    throws NotConnectedException, InterruptedException;
 
     /**
      * Creates a new packet collector for this connection. A packet filter
@@ -228,7 +229,7 @@ public interface XMPPConnection {
      * <p>
      * <b>Note:</b> If you send a Packet right after using this method, then
      * consider using
-     * {@link #createPacketCollectorAndSend(PacketFilter, Packet)} instead.
+     * {@link #createPacketCollectorAndSend(PacketFilter, Stanza)} instead.
      * Otherwise make sure cancel the PacketCollector in every case, e.g. even
      * if an exception is thrown, or otherwise you may leak the PacketCollector.
      * </p>
@@ -237,6 +238,19 @@ public interface XMPPConnection {
      * @return a new packet collector.
      */
     public PacketCollector createPacketCollector(PacketFilter packetFilter);
+
+    /**
+     * Create a new packet collector with the given packet collector configuration.
+     * <p>
+     * Please make sure to cancel the collector when it is no longer required. See also
+     * {@link #createPacketCollector(PacketFilter)}.
+     * </p>
+     * 
+     * @param configuration the packet collector configuration.
+     * @return a new packet collector.
+     * @since 4.1
+     */
+    public PacketCollector createPacketCollector(PacketCollector.Configuration configuration);
 
     /**
      * Remove a packet collector of this connection.
@@ -286,7 +300,7 @@ public interface XMPPConnection {
      *
      * @param packetListener the packet listener to notify of new received packets.
      * @param packetFilter the packet filter to use.
-     * @see {@link #addPacketInterceptor(PacketListener, PacketFilter)} for a similar callback for outgoing stanzas.
+     * @see #addPacketInterceptor(PacketListener, PacketFilter)
      * @since 4.1
      */
     public void addSyncPacketListener(PacketListener packetListener, PacketFilter packetFilter);
@@ -312,7 +326,7 @@ public interface XMPPConnection {
      * 
      * @param packetListener the packet listener to notify of new received packets.
      * @param packetFilter the packet filter to use.
-     * @see {@link #addPacketInterceptor(PacketListener, PacketFilter)} for a similar callback for outgoing stanzas.
+     * @see #addPacketInterceptor(PacketListener, PacketFilter)
      * @since 4.1
     */
     public void addAsyncPacketListener(PacketListener packetListener, PacketFilter packetFilter);
@@ -425,22 +439,6 @@ public interface XMPPConnection {
     public FromMode getFromMode();
 
     /**
-     * Get the permanent roster store.
-     * @return the permanent roster store or null
-     */
-    public RosterStore getRosterStore();
-
-    /**
-     * Returns true if the roster will be loaded from the server when logging in. This
-     * is the common behavior for clients but sometimes clients may want to differ this
-     * or just never do it if not interested in rosters.
-     *
-     * @return true if the roster will be loaded from the server when logging in.
-     * @see <a href="http://xmpp.org/rfcs/rfc6121.html#roster-login">RFC 6121 2.2 - Retrieving the Roster on Login</a>
-     */
-    public boolean isRosterLoadedAtLogin();
-
-    /**
      * Get the feature packet extensions for a given stream feature of the
      * server, or <code>null</code> if the server doesn't support that feature.
      * 
@@ -471,9 +469,10 @@ public interface XMPPConnection {
      * @param replyFilter the filter used to determine response stanza (required)
      * @param callback the callback invoked if there is a response (required)
      * @throws NotConnectedException
+     * @throws InterruptedException 
      */
-    public void sendStanzaWithResponseCallback(Packet stanza, PacketFilter replyFilter,
-                    PacketListener callback) throws NotConnectedException;
+    public void sendStanzaWithResponseCallback(Stanza stanza, PacketFilter replyFilter,
+                    PacketListener callback) throws NotConnectedException, InterruptedException;
 
     /**
      * Send a stanza and wait asynchronously for a response by using <code>replyFilter</code>.
@@ -488,9 +487,10 @@ public interface XMPPConnection {
      * @param callback the callback invoked if there is a response (required)
      * @param exceptionCallback the callback invoked if there is an exception (optional)
      * @throws NotConnectedException
+     * @throws InterruptedException 
      */
-    public void sendStanzaWithResponseCallback(Packet stanza, PacketFilter replyFilter, PacketListener callback,
-                    ExceptionCallback exceptionCallback) throws NotConnectedException;
+    public void sendStanzaWithResponseCallback(Stanza stanza, PacketFilter replyFilter, PacketListener callback,
+                    ExceptionCallback exceptionCallback) throws NotConnectedException, InterruptedException;
 
     /**
      * Send a stanza and wait asynchronously for a response by using <code>replyFilter</code>.
@@ -506,10 +506,11 @@ public interface XMPPConnection {
      * @param exceptionCallback the callback invoked if there is an exception (optional)
      * @param timeout the timeout in milliseconds to wait for a response
      * @throws NotConnectedException
+     * @throws InterruptedException 
      */
-    public void sendStanzaWithResponseCallback(Packet stanza, PacketFilter replyFilter,
+    public void sendStanzaWithResponseCallback(Stanza stanza, PacketFilter replyFilter,
                     final PacketListener callback, final ExceptionCallback exceptionCallback,
-                    long timeout) throws NotConnectedException;
+                    long timeout) throws NotConnectedException, InterruptedException;
 
     /**
      * Send a IQ stanza and invoke <code>callback</code> if there is a result of
@@ -519,8 +520,9 @@ public interface XMPPConnection {
      * @param iqRequest the IQ stanza to send (required)
      * @param callback the callback invoked if there is result response (required)
      * @throws NotConnectedException
+     * @throws InterruptedException 
      */
-    public void sendIqWithResponseCallback(IQ iqRequest, PacketListener callback) throws NotConnectedException;
+    public void sendIqWithResponseCallback(IQ iqRequest, PacketListener callback) throws NotConnectedException, InterruptedException;
 
     /**
      * Send a IQ stanza and invoke <code>callback</code> if there is a result of
@@ -534,9 +536,10 @@ public interface XMPPConnection {
      * @param callback the callback invoked if there is result response (required)
      * @param exceptionCallback the callback invoked if there is an Exception optional
      * @throws NotConnectedException
+     * @throws InterruptedException 
      */
     public void sendIqWithResponseCallback(IQ iqRequest, PacketListener callback,
-                    ExceptionCallback exceptionCallback) throws NotConnectedException;
+                    ExceptionCallback exceptionCallback) throws NotConnectedException, InterruptedException;
 
     /**
      * Send a IQ stanza and invoke <code>callback</code> if there is a result of
@@ -551,10 +554,48 @@ public interface XMPPConnection {
      * @param exceptionCallback the callback invoked if there is an Exception optional
      * @param timeout the timeout in milliseconds to wait for a response
      * @throws NotConnectedException
+     * @throws InterruptedException 
      */
     public void sendIqWithResponseCallback(IQ iqRequest, final PacketListener callback,
                     final ExceptionCallback exceptionCallback, long timeout)
-                    throws NotConnectedException;
+                    throws NotConnectedException, InterruptedException;
+
+    /**
+     * Add a callback that is called exactly once and synchronously with the incoming stanza that matches the given
+     * packet filter.
+     * 
+     * @param callback the callback invoked once the packet filter matches a stanza.
+     * @param packetFilter the filter to match stanzas or null to match all.
+     */
+    public void addOneTimeSyncCallback(PacketListener callback, PacketFilter packetFilter);
+
+    /**
+     * Register an IQ request handler with this connection.
+     * <p>
+     * IQ request handler process incoming IQ requests, i.e. incoming IQ stanzas of type 'get' or 'set', and return a result.
+     * </p>
+     * @param iqRequestHandler the IQ request handler to register.
+     * @return the previously registered IQ request handler or null.
+     */
+    public IQRequestHandler registerIQRequestHandler(IQRequestHandler iqRequestHandler);
+
+    /**
+     * Convenience method for {@link #unregisterIQRequestHandler(String, String, org.jivesoftware.smack.packet.IQ.Type)}.
+     *
+     * @param iqRequestHandler
+     * @return the previously registered IQ request handler or null.
+     */
+    public IQRequestHandler unregisterIQRequestHandler(IQRequestHandler iqRequestHandler);
+
+    /**
+     * Unregister an IQ request handler with this connection.
+     * 
+     * @param element the IQ element the IQ request handler is responsible for.
+     * @param namespace the IQ namespace the IQ request handler is responsible for.
+     * @param type the IQ type the IQ request handler is responsible for.
+     * @return the previously registered IQ request handler or null.
+     */
+    public IQRequestHandler unregisterIQRequestHandler(String element, String namespace, IQ.Type type);
 
     /**
      * Returns the timestamp in milliseconds when the last stanza was received.

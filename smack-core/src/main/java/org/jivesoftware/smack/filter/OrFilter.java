@@ -17,11 +17,7 @@
 
 package org.jivesoftware.smack.filter;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-
-import org.jivesoftware.smack.packet.Packet;
+import org.jivesoftware.smack.packet.Stanza;
 
 /**
  * Implements the logical OR operation over two or more packet filters. In
@@ -29,19 +25,14 @@ import org.jivesoftware.smack.packet.Packet;
  *
  * @author Matt Tucker
  */
-public class OrFilter implements PacketFilter {
-
-    /**
-     * The list of filters.
-     */
-    private final List<PacketFilter> filters;
+public class OrFilter extends AbstractListFilter implements PacketFilter {
 
     /**
      * Creates an empty OR filter. Filters should be added using the
      * {@link #addFilter(PacketFilter)} method.
      */
     public OrFilter() {
-        filters = new ArrayList<PacketFilter>();
+        super();
     }
 
     /**
@@ -50,31 +41,11 @@ public class OrFilter implements PacketFilter {
      * @param filters the filters to add.
      */
     public OrFilter(PacketFilter... filters) {
-        if (filters == null) {
-            throw new IllegalArgumentException("Parameter must not be null.");
-        }
-        for(PacketFilter filter : filters) {
-            if(filter == null) {
-                throw new IllegalArgumentException("Parameter must not be null.");
-            }
-        }
-        this.filters = new ArrayList<PacketFilter>(Arrays.asList(filters));
+        super(filters);
     }
 
-    /**
-     * Adds a filter to the filter list for the OR operation. A packet
-     * will pass the filter if any filter in the list accepts it.
-     *
-     * @param filter a filter to add to the filter list.
-     */
-    public void addFilter(PacketFilter filter) {
-        if (filter == null) {
-            throw new IllegalArgumentException("Parameter must not be null.");
-        }
-        filters.add(filter);
-    }
-
-    public boolean accept(Packet packet) {
+    @Override
+    public boolean accept(Stanza packet) {
         for (PacketFilter filter : filters) {
             if (filter.accept(packet)) {
                 return true;
@@ -83,7 +54,4 @@ public class OrFilter implements PacketFilter {
         return false;
     }
 
-    public String toString() {
-        return filters.toString();
-    }
 }

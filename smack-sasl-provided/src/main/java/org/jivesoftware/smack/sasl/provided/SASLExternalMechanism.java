@@ -20,7 +20,7 @@ import javax.security.auth.callback.CallbackHandler;
 
 import org.jivesoftware.smack.SmackException;
 import org.jivesoftware.smack.sasl.SASLMechanism;
-
+import org.jivesoftware.smack.util.StringUtils;
 import org.jxmpp.util.XmppStringUtils;
 
 /**
@@ -34,12 +34,13 @@ public class SASLExternalMechanism extends SASLMechanism {
 
     @Override
     protected void authenticateInternal(CallbackHandler cbh) throws SmackException {
-        throw new UnsupportedOperationException("CallbackHandler not (yet) supported");
+        // Do nothing. Auth will be done external to Smack and which will receive the localpart
+        // after the resource binding
     }
 
     @Override
     protected byte[] getAuthenticationText() throws SmackException {
-        if (authenticationId == null) {
+        if (StringUtils.isNullOrEmpty(authenticationId)) {
             return null;
         }
 

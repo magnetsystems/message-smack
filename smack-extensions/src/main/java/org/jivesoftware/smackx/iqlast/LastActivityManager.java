@@ -28,16 +28,19 @@ import org.jivesoftware.smack.PacketListener;
 import org.jivesoftware.smack.Manager;
 import org.jivesoftware.smack.XMPPConnectionRegistry;
 import org.jivesoftware.smack.XMPPException.XMPPErrorException;
-import org.jivesoftware.smack.filter.AndFilter;
-import org.jivesoftware.smack.filter.IQTypeFilter;
-import org.jivesoftware.smack.filter.PacketFilter;
 import org.jivesoftware.smack.filter.PacketTypeFilter;
+import org.jivesoftware.smack.iqrequest.AbstractIqRequestHandler;
+import org.jivesoftware.smack.iqrequest.IQRequestHandler.Mode;
 import org.jivesoftware.smack.packet.IQ;
+import org.jivesoftware.smack.packet.IQ.Type;
 import org.jivesoftware.smack.packet.Message;
-import org.jivesoftware.smack.packet.Packet;
+import org.jivesoftware.smack.packet.Stanza;
 import org.jivesoftware.smack.packet.Presence;
+import org.jivesoftware.smack.packet.XMPPError;
+import org.jivesoftware.smack.packet.XMPPError.Condition;
 import org.jivesoftware.smackx.disco.ServiceDiscoveryManager;
 import org.jivesoftware.smackx.iqlast.packet.LastActivity;
+import org.jxmpp.jid.Jid;
 
 /**
  * A last activity manager for handling information about the last activity
@@ -89,8 +92,8 @@ import org.jivesoftware.smackx.iqlast.packet.LastActivity;
 
 public class LastActivityManager extends Manager {
     private static final Map<XMPPConnection, LastActivityManager> instances = new WeakHashMap<XMPPConnection, LastActivityManager>();
-    private static final PacketFilter IQ_GET_LAST_FILTER = new AndFilter(IQTypeFilter.GET,
-                    new PacketTypeFilter(LastActivity.class));
+//    private static final PacketFilter IQ_GET_LAST_FILTER = new AndFilter(IQTypeFilter.GET,
+//                    new PacketTypeFilter(LastActivity.class));
 
     private static boolean enabledPerDefault = true;
 
@@ -133,7 +136,7 @@ public class LastActivityManager extends Manager {
 
         // Listen to all the sent messages to reset the idle time on each one
         connection.addPacketSendingListener(new PacketListener() {
-            public void processPacket(Packet packet) {
+            public void processPacket(Stanza packet) {
                 Presence presence = (Presence) packet;
                 Presence.Mode mode = presence.getMode();
                 if (mode == null) return;
@@ -151,7 +154,7 @@ public class LastActivityManager extends Manager {
 
         connection.addPacketSendingListener(new PacketListener() {
             @Override
-            public void processPacket(Packet packet) {
+            public void processPacket(Stanza packet) {
                 Message message = (Message) packet;
                 // if it's not an error message, reset the idle time
                 if (message.getType() == Message.Type.error) return;
@@ -160,21 +163,22 @@ public class LastActivityManager extends Manager {
         }, PacketTypeFilter.MESSAGE);
 
         // Register a listener for a last activity query
-        connection.addAsyncPacketListener(new PacketListener() {
-
-            public void processPacket(Packet packet) throws NotConnectedException {
-                if (!enabled) return;
+        connection.registerIQRequestHandler(new AbstractIqRequestHandler(LastActivity.ELEMENT, LastActivity.NAMESPACE,
+                        Type.get, Mode.async) {
+            @Override
+            public IQ handleIQRequest(IQ iqRequest) {
+                if (!enabled)
+                    return IQ.createErrorResponse(iqRequest, new XMPPError(Condition.not_acceptable));
                 LastActivity message = new LastActivity();
                 message.setType(IQ.Type.result);
-                message.setTo(packet.getFrom());
-                message.setFrom(packet.getTo());
-                message.setPacketID(packet.getPacketID());
+                message.setTo(iqRequest.getFrom());
+                message.setFrom(iqRequest.getTo());
+                message.setStanzaId(iqRequest.getStanzaId());
                 message.setLastActivity(getIdleTime());
 
-                connection().sendPacket(message);
+                return message;
             }
-
-        }, IQ_GET_LAST_FILTER);
+        });
 
         if (enabledPerDefault) {
             enable();
@@ -228,9 +232,10 @@ public class LastActivityManager extends Manager {
      *             thrown if a server error has occured.
      * @throws NoResponseException if there was no response from the server.
      * @throws NotConnectedException 
+     * @throws InterruptedException 
      */
-    public LastActivity getLastActivity(String jid) throws NoResponseException, XMPPErrorException,
-                    NotConnectedException {
+    public LastActivity getLastActivity(Jid jid) throws NoResponseException, XMPPErrorException,
+                    NotConnectedException, InterruptedException {
         LastActivity activity = new LastActivity(jid);
         return (LastActivity) connection().createPacketCollectorAndSend(activity).nextResultOrThrow();
     }
@@ -243,8 +248,9 @@ public class LastActivityManager extends Manager {
      * @throws NotConnectedException 
      * @throws XMPPErrorException 
      * @throws NoResponseException 
+     * @throws InterruptedException 
      */
-    public boolean isLastActivitySupported(String jid) throws NoResponseException, XMPPErrorException, NotConnectedException {
+    public boolean isLastActivitySupported(Jid jid) throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
         return ServiceDiscoveryManager.getInstanceFor(connection()).supportsFeature(jid, LastActivity.NAMESPACE);
     }
 }

@@ -20,8 +20,11 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
 
 import org.jivesoftware.smack.filter.FromMatchesFilter;
-import org.jivesoftware.smack.packet.Packet;
+import org.jivesoftware.smack.packet.Stanza;
 import org.junit.Test;
+import org.jxmpp.jid.FullJid;
+import org.jxmpp.jid.Jid;
+import org.jxmpp.jid.JidTestUtil;
 
 /**
  * 
@@ -29,22 +32,22 @@ import org.junit.Test;
  *
  */
 public class FromMatchesFilterTest {
-    private static final String BASE_JID1 = "ss@muc.myserver.com";
-    private static final String FULL_JID1_R1 = BASE_JID1 + "/resource";
-    private static final String FULL_JID1_R2 = BASE_JID1 + "/resource2";
-    private static final String BASE_JID2 = "sss@muc.myserver.com";
-    private static final String FULL_JID2 = BASE_JID2 + "/resource";
+    private static final Jid BASE_JID1 = JidTestUtil.BARE_JID_1;
+    private static final FullJid FULL_JID1_R1 = JidTestUtil.FULL_JID_1_RESOURCE_1;
+    private static final FullJid FULL_JID1_R2 = JidTestUtil.FULL_JID_1_RESOURCE_2;
+    private static final Jid BASE_JID2 = JidTestUtil.BARE_JID_2;
+    private static final Jid FULL_JID2 = JidTestUtil.FULL_JID_2_RESOURCE_1;
 
-    private static final String BASE_JID3 = "ss@muc.myserver.comm.net";
+    private static final Jid BASE_JID3 = JidTestUtil.DUMMY_AT_EXAMPLE_ORG;
 
-    private static final String SERVICE_JID1 = "muc.myserver.com";
-    private static final String SERVICE_JID2 = "pubsub.myserver.com";
+    private static final Jid SERVICE_JID1 = JidTestUtil.MUC_EXAMPLE_ORG;
+    private static final Jid SERVICE_JID2 = JidTestUtil.PUBSUB_EXAMPLE_ORG;
 
     @Test
     public void autoCompareMatchingFullJid()
     {
         FromMatchesFilter filter = FromMatchesFilter.create(FULL_JID1_R1);
-        Packet packet = new Packet() {
+        Stanza packet = new Stanza() {
             @Override
             public String toXML() { return null; }
         };
@@ -72,7 +75,7 @@ public class FromMatchesFilterTest {
     public void autoCompareMatchingBaseJid()
     {
         FromMatchesFilter filter = FromMatchesFilter.create(BASE_JID1);
-        Packet packet = new Packet() {
+        Stanza packet = new Stanza() {
             @Override
             public String toXML() { return null; }
         };
@@ -100,7 +103,7 @@ public class FromMatchesFilterTest {
     public void autoCompareMatchingServiceJid()
     {
         FromMatchesFilter filter = FromMatchesFilter.create(SERVICE_JID1);
-        Packet packet = new Packet() {
+        Stanza packet = new Stanza() {
             @Override
             public String toXML() { return null; }
         };
@@ -125,7 +128,7 @@ public class FromMatchesFilterTest {
     public void bareCompareMatchingFullJid()
     {
         FromMatchesFilter filter = FromMatchesFilter.createBare(FULL_JID1_R1);
-        Packet packet = new Packet() {
+        Stanza packet = new Stanza() {
             @Override
             public String toXML() { return null; }
         };
@@ -153,7 +156,7 @@ public class FromMatchesFilterTest {
     public void bareCompareMatchingBaseJid()
     {
         FromMatchesFilter filter = FromMatchesFilter.createBare(BASE_JID1);
-        Packet packet = new Packet() {
+        Stanza packet = new Stanza() {
             @Override
             public String toXML() { return null; }
         };
@@ -181,7 +184,7 @@ public class FromMatchesFilterTest {
     public void bareCompareMatchingServiceJid()
     {
         FromMatchesFilter filter = FromMatchesFilter.createBare(SERVICE_JID1);
-        Packet packet = new Packet() {
+        Stanza packet = new Stanza() {
             @Override
             public String toXML() { return null; }
         };
@@ -206,7 +209,7 @@ public class FromMatchesFilterTest {
     public void fullCompareMatchingFullJid()
     {
         FromMatchesFilter filter = FromMatchesFilter.createFull(FULL_JID1_R1);
-        Packet packet = new Packet() {
+        Stanza packet = new Stanza() {
             @Override
             public String toXML() { return null; }
         };
@@ -234,7 +237,7 @@ public class FromMatchesFilterTest {
     public void fullCompareMatchingBaseJid()
     {
         FromMatchesFilter filter = FromMatchesFilter.createFull(BASE_JID1);
-        Packet packet = new Packet() {
+        Stanza packet = new Stanza() {
             @Override
             public String toXML() { return null; }
         };
@@ -262,7 +265,7 @@ public class FromMatchesFilterTest {
     public void fullCompareMatchingServiceJid()
     {
         FromMatchesFilter filter = FromMatchesFilter.createFull(SERVICE_JID1);
-        Packet packet = new Packet() {
+        Stanza packet = new Stanza() {
             @Override
             public String toXML() { return null; }
         };

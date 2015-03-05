@@ -39,6 +39,8 @@ import org.jivesoftware.smack.XMPPException.XMPPErrorException;
 import org.jivesoftware.smack.packet.IQ;
 import org.jivesoftware.smack.util.StringUtils;
 import org.jivesoftware.smack.util.stringencoder.Base64;
+import org.jivesoftware.smackx.vcardtemp.VCardManager;
+import org.jxmpp.jid.BareJid;
 
 /**
  * A VCard class for use with the
@@ -398,6 +400,7 @@ public class VCard extends IQ {
      * @param encodedAvatar the encoded avatar string.
      * @deprecated Use {@link #setAvatar(String, String)} instead.
      */
+    @Deprecated
     public void setEncodedImage(String encodedAvatar) {
         setAvatar(encodedAvatar, DEFAULT_MIME_TYPE);
     }
@@ -515,21 +518,18 @@ public class VCard extends IQ {
 
     /**
      * Save this vCard for the user connected by 'connection'. XMPPConnection should be authenticated
-     * and not anonymous.<p>
-     * <p/>
-     * NOTE: the method is asynchronous and does not wait for the returned value.
+     * and not anonymous.
      *
      * @param connection the XMPPConnection to use.
      * @throws XMPPErrorException thrown if there was an issue setting the VCard in the server.
      * @throws NoResponseException if there was no response from the server.
      * @throws NotConnectedException 
+     * @throws InterruptedException 
+     * @deprecated use {@link VCardManager#saveVCard(VCard)} instead.
      */
-    public void save(XMPPConnection connection) throws NoResponseException, XMPPErrorException, NotConnectedException {
-        checkAuthenticated(connection, true);
-
-        setType(IQ.Type.set);
-        setFrom(connection.getUser());
-        connection.createPacketCollectorAndSend(this).nextResultOrThrow();
+    @Deprecated
+    public void save(XMPPConnection connection) throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
+        VCardManager.getInstanceFor(connection).saveVCard(this);
     }
 
     /**
@@ -538,12 +538,12 @@ public class VCard extends IQ {
      * @throws XMPPErrorException 
      * @throws NoResponseException 
      * @throws NotConnectedException 
+     * @throws InterruptedException 
+     * @deprecated use {@link VCardManager#loadVCard()} instead.
      */
-    public void load(XMPPConnection connection) throws NoResponseException, XMPPErrorException, NotConnectedException  {
-        checkAuthenticated(connection, true);
-
-        setFrom(connection.getUser());
-        doLoad(connection, connection.getUser());
+    @Deprecated
+    public void load(XMPPConnection connection) throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException  {
+        load(connection, null);
     }
 
     /**
@@ -551,17 +551,12 @@ public class VCard extends IQ {
      * @throws XMPPErrorException 
      * @throws NoResponseException if there was no response from the server.
      * @throws NotConnectedException 
+     * @throws InterruptedException 
+     * @deprecated use {@link VCardManager#loadVCard(BareJid)} instead.
      */
-    public void load(XMPPConnection connection, String user) throws NoResponseException, XMPPErrorException, NotConnectedException {
-        checkAuthenticated(connection, false);
-
-        setTo(user);
-        doLoad(connection, user);
-    }
-
-    private void doLoad(XMPPConnection connection, String user) throws NoResponseException, XMPPErrorException, NotConnectedException {
-        setType(Type.get);
-        VCard result = (VCard) connection.createPacketCollectorAndSend(this).nextResultOrThrow();
+    @Deprecated
+    public void load(XMPPConnection connection, BareJid user) throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
+        VCard result = VCardManager.getInstanceFor(connection).loadVCard(user);
         copyFieldsFrom(result);
     }
 
@@ -661,18 +656,6 @@ public class VCard extends IQ {
                     throw new RuntimeException("This cannot happen:" + field, e);
                 }
             }
-        }
-    }
-
-    private void checkAuthenticated(XMPPConnection connection, boolean checkForAnonymous) {
-        if (connection == null) {
-            throw new IllegalArgumentException("No connection was provided");
-        }
-        if (!connection.isAuthenticated()) {
-            throw new IllegalArgumentException("XMPPConnection is not authenticated");
-        }
-        if (checkForAnonymous && connection.isAnonymous()) {
-            throw new IllegalArgumentException("XMPPConnection cannot be anonymous");
         }
     }
 

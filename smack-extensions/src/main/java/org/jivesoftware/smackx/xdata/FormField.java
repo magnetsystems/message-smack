@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import org.jivesoftware.smack.packet.NamedElement;
 import org.jivesoftware.smack.util.XmlStringBuilder;
 import org.jivesoftware.smackx.xdatavalidation.packet.ValidateElement;
 
@@ -31,9 +32,14 @@ import org.jivesoftware.smackx.xdatavalidation.packet.ValidateElement;
  *
  * @author Gaston Dombiak
  */
-public class FormField {
+public class FormField implements NamedElement {
 
     public static final String ELEMENT = "field";
+
+    /**
+     * The constant String "FORM_TYPE"
+     */
+    public static final String FORM_TYPE = "FORM_TYPE";
 
     /**
      * Form Field Types as defined in XEP-4 § 3.3.
@@ -107,7 +113,16 @@ public class FormField {
             }
         }
 
+        /**
+         * Get a form field type from the given string. If <code>string</code> is null, then null will be returned.
+         *
+         * @param string the string to transform or null.
+         * @return the type or null.
+         */
         public static Type fromString(String string) {
+            if (string == null) {
+                return null;
+            }
             switch (string) {
             case "boolean":
                 return bool;
@@ -118,10 +133,11 @@ public class FormField {
         }
     }
 
+    private final String variable;
+
     private String description;
     private boolean required = false;
     private String label;
-    private String variable;
     private Type type;
     private final List<Option> options = new ArrayList<Option>();
     private final List<String> values = new ArrayList<String>();
@@ -142,6 +158,7 @@ public class FormField {
      * name.
      */
     public FormField() {
+        this(null);
         this.type = Type.fixed;
     }
 
@@ -214,7 +231,12 @@ public class FormField {
 
     /**
      * Returns the variable name that the question is filling out.
-     *
+     * <p>
+     * According to XEP-4 § 3.2 the variable name (the 'var' attribute)
+     * "uniquely identifies the field in the context of the form" (if the field is not of type 'fixed', in which case
+     * the field "MAY possess a 'var' attribute")
+     * </p>
+     * 
      * @return the variable name of the question.
      */
     public String getVariable() {
@@ -270,11 +292,19 @@ public class FormField {
 
     /**
      * Sets an indicative of the format for the data to answer.
+     * <p>
+     * This method will throw an IllegalArgumentException if type is 'fixed'. To create FormFields of type 'fixed' use
+     * {@link #FormField()} instead.
+     * </p>
      *
      * @param type an indicative of the format for the data to answer.
      * @see Type
+     * @throws IllegalArgumentException if type is 'fixed'.
      */
     public void setType(Type type) {
+        if (type == Type.fixed) {
+            throw new IllegalArgumentException("Can not set type to fixed, use FormField constructor without arguments instead.");
+        }
         this.type = type;
     }
 
@@ -323,9 +353,13 @@ public class FormField {
         }
     }
 
+    @Override
+    public String getElementName() {
+        return ELEMENT;
+    }
+
     public XmlStringBuilder toXML() {
-        XmlStringBuilder buf = new XmlStringBuilder();
-        buf.halfOpenElement(ELEMENT);
+        XmlStringBuilder buf = new XmlStringBuilder(this);
         // Add attributes
         buf.optAttribute("label", getLabel());
         buf.optAttribute("var", getVariable());
@@ -343,7 +377,7 @@ public class FormField {
             buf.append(option.toXML());
         }
         buf.optElement(validateElement);
-        buf.closeElement(ELEMENT);
+        buf.closeElement(this);
         return buf;
     }
 
@@ -371,7 +405,7 @@ public class FormField {
      *
      * @author Gaston Dombiak
      */
-    public static class Option {
+    public static class Option implements NamedElement {
 
         public static final String ELEMENT = "option";
 
@@ -410,9 +444,13 @@ public class FormField {
             return getLabel();
         }
 
+        @Override
+        public String getElementName() {
+            return ELEMENT;
+        }
+
         public XmlStringBuilder toXML() {
-            XmlStringBuilder xml = new XmlStringBuilder();
-            xml.halfOpenElement(ELEMENT);
+            XmlStringBuilder xml = new XmlStringBuilder(this);
             // Add attribute
             xml.optAttribute("label", getLabel());
             xml.rightAngleBracket();
@@ -420,7 +458,7 @@ public class FormField {
             // Add element
             xml.element("value", getValue());
 
-            xml.closeElement(ELEMENT);
+            xml.closeElement(this);
             return xml;
         }
 

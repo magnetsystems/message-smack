@@ -24,23 +24,21 @@ import org.jivesoftware.smack.SmackException.NotConnectedException;
 import org.jivesoftware.smack.XMPPConnection;
 import org.jivesoftware.smack.ConnectionCreationListener;
 import org.jivesoftware.smack.Manager;
-import org.jivesoftware.smack.PacketListener;
 import org.jivesoftware.smack.XMPPConnectionRegistry;
 import org.jivesoftware.smack.XMPPException.XMPPErrorException;
-import org.jivesoftware.smack.filter.AndFilter;
-import org.jivesoftware.smack.filter.IQTypeFilter;
-import org.jivesoftware.smack.filter.PacketFilter;
-import org.jivesoftware.smack.filter.PacketTypeFilter;
-import org.jivesoftware.smack.packet.Packet;
+import org.jivesoftware.smack.iqrequest.AbstractIqRequestHandler;
+import org.jivesoftware.smack.iqrequest.IQRequestHandler.Mode;
+import org.jivesoftware.smack.packet.IQ;
+import org.jivesoftware.smack.packet.IQ.Type;
+import org.jivesoftware.smack.packet.XMPPError;
+import org.jivesoftware.smack.packet.XMPPError.Condition;
 import org.jivesoftware.smackx.disco.ServiceDiscoveryManager;
 import org.jivesoftware.smackx.time.packet.Time;
+import org.jxmpp.jid.Jid;
 
 public class EntityTimeManager extends Manager {
 
     private static final Map<XMPPConnection, EntityTimeManager> INSTANCES = new WeakHashMap<XMPPConnection, EntityTimeManager>();
-
-    private static final PacketFilter TIME_PACKET_FILTER = new AndFilter(new PacketTypeFilter(
-                    Time.class), IQTypeFilter.GET);
 
     private static boolean autoEnable = true;
 
@@ -72,14 +70,18 @@ public class EntityTimeManager extends Manager {
         if (autoEnable)
             enable();
 
-        connection.addAsyncPacketListener(new PacketListener() {
+        connection.registerIQRequestHandler(new AbstractIqRequestHandler(Time.ELEMENT, Time.NAMESPACE, Type.get,
+                        Mode.async) {
             @Override
-            public void processPacket(Packet packet) throws NotConnectedException {
-                if (!enabled)
-                    return;
-                connection().sendPacket(Time.createResponse(packet));
+            public IQ handleIQRequest(IQ iqRequest) {
+                if (enabled) {
+                    return Time.createResponse(iqRequest);
+                }
+                else {
+                    return IQ.createErrorResponse(iqRequest, new XMPPError(Condition.not_acceptable));
+                }
             }
-        }, TIME_PACKET_FILTER);
+        });
     }
 
     public synchronized void enable() {
@@ -98,11 +100,11 @@ public class EntityTimeManager extends Manager {
         enabled = false;
     }
 
-    public boolean isTimeSupported(String jid) throws NoResponseException, XMPPErrorException, NotConnectedException  {
+    public boolean isTimeSupported(Jid jid) throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException  {
         return ServiceDiscoveryManager.getInstanceFor(connection()).supportsFeature(jid, Time.NAMESPACE);
     }
 
-    public Time getTime(String jid) throws NoResponseException, XMPPErrorException, NotConnectedException {
+    public Time getTime(Jid jid) throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
         if (!isTimeSupported(jid))
             return null;
 

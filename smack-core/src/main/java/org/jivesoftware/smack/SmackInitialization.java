@@ -30,10 +30,8 @@ import java.util.logging.Logger;
 import org.jivesoftware.smack.compression.Java7ZlibInputOutputStream;
 import org.jivesoftware.smack.initializer.SmackInitializer;
 import org.jivesoftware.smack.packet.Bind;
-import org.jivesoftware.smack.packet.RosterPacket;
 import org.jivesoftware.smack.provider.BindIQProvider;
 import org.jivesoftware.smack.provider.ProviderManager;
-import org.jivesoftware.smack.provider.RosterPacketProvider;
 import org.jivesoftware.smack.sasl.core.SASLXOauth2Mechanism;
 import org.jivesoftware.smack.sasl.core.SCRAMSHA1Mechanism;
 import org.jivesoftware.smack.util.FileUtils;
@@ -55,7 +53,7 @@ public final class SmackInitialization {
      * So far this means that:
      * 1) a set of classes will be loaded in order to execute their static init block
      * 2) retrieve and set the current Smack release
-     * 3) set DEBUG_ENABLED
+     * 3) set DEBUG
      */
     static {
         String smackVersion;
@@ -127,10 +125,10 @@ public final class SmackInitialization {
         // Use try block since we may not have permission to get a system
         // property (for example, when an applet).
         try {
-            // Only overwrite DEBUG_ENABLED if it is set via the 'smack.debugEnabled' property. To prevent DEBUG_ENABLED
+            // Only overwrite DEBUG if it is set via the 'smack.debugEnabled' property. To prevent DEBUG_ENABLED
             // = true, which could be set e.g. via a static block from user code, from being overwritten by the property not set
             if (Boolean.getBoolean("smack.debugEnabled")) {
-                SmackConfiguration.DEBUG_ENABLED = true;
+                SmackConfiguration.DEBUG = true;
             }
         }
         catch (Exception e) {
@@ -140,7 +138,6 @@ public final class SmackInitialization {
         SASLAuthentication.registerSASLMechanism(new SCRAMSHA1Mechanism());
         SASLAuthentication.registerSASLMechanism(new SASLXOauth2Mechanism());
 
-        ProviderManager.addIQProvider(RosterPacket.ELEMENT, RosterPacket.NAMESPACE, RosterPacketProvider.INSTANCE);
         ProviderManager.addIQProvider(Bind.ELEMENT, Bind.NAMESPACE, new BindIQProvider());
 
         SmackConfiguration.smackInitialized = true;

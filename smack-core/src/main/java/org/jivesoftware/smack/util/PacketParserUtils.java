@@ -29,24 +29,25 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.jivesoftware.smack.SmackException;
-import org.jivesoftware.smack.XMPPConnection;
 import org.jivesoftware.smack.compress.packet.Compress;
 import org.jivesoftware.smack.packet.DefaultPacketExtension;
 import org.jivesoftware.smack.packet.EmptyResultIQ;
 import org.jivesoftware.smack.packet.ErrorIQ;
 import org.jivesoftware.smack.packet.IQ;
 import org.jivesoftware.smack.packet.Message;
-import org.jivesoftware.smack.packet.Packet;
+import org.jivesoftware.smack.packet.Stanza;
 import org.jivesoftware.smack.packet.PacketExtension;
 import org.jivesoftware.smack.packet.Presence;
 import org.jivesoftware.smack.packet.Session;
 import org.jivesoftware.smack.packet.StartTls;
 import org.jivesoftware.smack.packet.StreamError;
+import org.jivesoftware.smack.packet.UnparsedIQ;
 import org.jivesoftware.smack.packet.XMPPError;
 import org.jivesoftware.smack.provider.IQProvider;
 import org.jivesoftware.smack.provider.PacketExtensionProvider;
 import org.jivesoftware.smack.provider.ProviderManager;
 import org.jivesoftware.smack.sasl.packet.SaslStreamElements.SASLFailure;
+import org.jxmpp.jid.Jid;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 import org.xmlpull.v1.XmlPullParserFactory;
@@ -128,12 +129,8 @@ public class PacketParserUtils {
         return parser;
     }
 
-    public static Packet parseStanza(String stanza) throws Exception {
+    public static Stanza parseStanza(String stanza) throws XmlPullParserException, IOException, SmackException {
         return parseStanza(getParserFor(stanza));
-    }
-
-    public static Packet parseStanza(XmlPullParser parser) throws Exception {
-        return parseStanza(parser, null);
     }
 
     /**
@@ -142,18 +139,19 @@ public class PacketParserUtils {
      * connection is optional and is used to return feature-not-implemented errors for unknown IQ stanzas.
      *
      * @param parser
-     * @param connection
      * @return a packet which is either a Message, IQ or Presence.
-     * @throws Exception
+     * @throws XmlPullParserException 
+     * @throws SmackException 
+     * @throws IOException 
      */
-    public static Packet parseStanza(XmlPullParser parser, XMPPConnection connection) throws Exception {
+    public static Stanza parseStanza(XmlPullParser parser) throws XmlPullParserException, IOException, SmackException {
         ParserUtils.assertAtStartTag(parser);
         final String name = parser.getName();
         switch (name) {
         case Message.ELEMENT:
             return parseMessage(parser);
-        case IQ.ELEMENT:
-            return parse(parser, connection);
+        case IQ.IQ_ELEMENT:
+            return parseIQ(parser);
         case Presence.ELEMENT:
             return parsePresence(parser);
         default:
@@ -224,9 +222,9 @@ public class PacketParserUtils {
 
         final int initialDepth = parser.getDepth();
         Message message = new Message();
-        message.setPacketID(parser.getAttributeValue("", "id"));
-        message.setTo(parser.getAttributeValue("", "to"));
-        message.setFrom(parser.getAttributeValue("", "from"));
+        message.setStanzaId(parser.getAttributeValue("", "id"));
+        message.setTo(ParserUtils.getJidAttribute(parser, "to"));
+        message.setFrom(ParserUtils.getJidAttribute(parser, "from"));
         String typeString = parser.getAttributeValue("", "type");
         if (typeString != null) {
             message.setType(Message.Type.fromString(typeString));
@@ -240,7 +238,7 @@ public class PacketParserUtils {
             defaultLanguage = language;
         } 
         else {
-            defaultLanguage = Packet.getDefaultLanguage();
+            defaultLanguage = Stanza.getDefaultLanguage();
         }
 
         // Parse sub-elements. We include extra logic to make sure the values
@@ -530,9 +528,9 @@ public class PacketParserUtils {
             type = Presence.Type.fromString(typeString);
         }
         Presence presence = new Presence(type);
-        presence.setTo(parser.getAttributeValue("", "to"));
-        presence.setFrom(parser.getAttributeValue("", "from"));
-        presence.setPacketID(parser.getAttributeValue("", "id"));
+        presence.setTo(ParserUtils.getJidAttribute(parser, "to"));
+        presence.setFrom(ParserUtils.getJidAttribute(parser, "from"));
+        presence.setStanzaId(parser.getAttributeValue("", "id"));
 
         String language = getLanguageAttribute(parser);
         if (language != null && !"".equals(language.trim())) {
@@ -565,7 +563,7 @@ public class PacketParserUtils {
                         LOGGER.warning("Empty or null mode text in presence show element form "
                                         + presence.getFrom()
                                         + " with id '"
-                                        + presence.getPacketID()
+                                        + presence.getStanzaId()
                                         + "' which is invalid according to RFC6121 4.7.2.1");
                     }
                     break;
@@ -597,19 +595,20 @@ public class PacketParserUtils {
      * Parses an IQ packet.
      *
      * @param parser the XML parser, positioned at the start of an IQ packet.
-     * @param connection the optional XMPPConnection used to send feature-not-implemented replies.
      * @return an IQ object.
-     * @throws Exception if an exception occurs while parsing the packet.
+     * @throws XmlPullParserException 
+     * @throws IOException 
+     * @throws SmackException 
      */
-    public static IQ parse(XmlPullParser parser, XMPPConnection connection) throws Exception {
+    public static IQ parseIQ(XmlPullParser parser) throws XmlPullParserException, IOException, SmackException {
         ParserUtils.assertAtStartTag(parser);
         final int initialDepth = parser.getDepth();
         IQ iqPacket = null;
         XMPPError error = null;
 
         final String id = parser.getAttributeValue("", "id");
-        final String to = parser.getAttributeValue("", "to");
-        final String from = parser.getAttributeValue("", "from");
+        final Jid to = ParserUtils.getJidAttribute(parser, "to");
+        final Jid from = ParserUtils.getJidAttribute(parser, "from");
         final IQ.Type type = IQ.Type.fromString(parser.getAttributeValue("", "type"));
 
         outerloop: while (true) {
@@ -630,14 +629,12 @@ public class PacketParserUtils {
                     if (provider != null) {
                             iqPacket = provider.parse(parser);
                     }
-                    // Only handle unknown IQs of type result. Types of 'get' and 'set' which are not understood
-                    // have to be answered with an IQ error response. See the code a few lines below
                     // Note that if we reach this code, it is guranteed that the result IQ contained a child element
                     // (RFC 6120 § 8.2.3 6) because otherwhise we would have reached the END_TAG first.
-                    else if (IQ.Type.result == type) {
+                    else {
                         // No Provider found for the IQ stanza, parse it to an UnparsedIQ instance
                         // so that the content of the IQ can be examined later on
-                        iqPacket = new UnparsedResultIQ(elementName, namespace, parseElement(parser));
+                        iqPacket = new UnparsedIQ(elementName, namespace, parseElement(parser));
                     }
                     break;
                 }
@@ -652,20 +649,6 @@ public class PacketParserUtils {
         // Decide what to do when an IQ packet was not understood
         if (iqPacket == null) {
             switch (type) {
-            case get:
-            case set:
-                if (connection == null) {
-                    return null;
-                }
-                // If the IQ stanza is of type "get" or "set" containing a child element qualified
-                // by a namespace with no registered Smack provider, then answer an IQ of type
-                // "error" with code 501 ("feature-not-implemented")
-                iqPacket = new ErrorIQ(new XMPPError(XMPPError.Condition.feature_not_implemented));
-                iqPacket.setPacketID(id);
-                iqPacket.setTo(from);
-                iqPacket.setFrom(to);
-                connection.sendPacket(iqPacket);
-                return null;
             case error:
                 // If an IQ packet wasn't created above, create an empty error IQ packet.
                 iqPacket = new ErrorIQ(error);
@@ -673,11 +656,13 @@ public class PacketParserUtils {
             case result:
                 iqPacket = new EmptyResultIQ();
                 break;
+            default:
+                break;
             }
         }
 
         // Set basic values on the iq packet.
-        iqPacket.setPacketID(id);
+        iqPacket.setStanzaId(id);
         iqPacket.setTo(to);
         iqPacket.setFrom(from);
         iqPacket.setType(type);
@@ -884,7 +869,7 @@ public class PacketParserUtils {
                 switch (namespace) {
                 case XMPPError.NAMESPACE:
                     switch (name) {
-                    case Packet.TEXT:
+                    case Stanza.TEXT:
                         descriptiveTexts = parseDescriptiveTexts(parser, descriptiveTexts);
                         break;
                     default:
@@ -1021,13 +1006,13 @@ public class PacketParserUtils {
     	return null;
     }
 
-    public static void addPacketExtension(Packet packet, XmlPullParser parser) throws XmlPullParserException,
+    public static void addPacketExtension(Stanza packet, XmlPullParser parser) throws XmlPullParserException,
                     IOException, SmackException {
         ParserUtils.assertAtStartTag(parser);
         addPacketExtension(packet, parser, parser.getName(), parser.getNamespace());
     }
 
-    public static void addPacketExtension(Packet packet, XmlPullParser parser, String elementName, String namespace)
+    public static void addPacketExtension(Stanza packet, XmlPullParser parser, String elementName, String namespace)
                     throws XmlPullParserException, IOException, SmackException {
         PacketExtension packetExtension = parsePacketExtension(elementName, namespace, parser);
         packet.addExtension(packetExtension);
@@ -1044,28 +1029,4 @@ public class PacketParserUtils {
         collection.add(packetExtension);
     }
 
-    /**
-     * This class represents and unparsed IQ of the type 'result'. Usually it's created when no IQProvider
-     * was found for the IQ element.
-     * 
-     * The child elements can be examined with the getChildElementXML() method.
-     *
-     */
-    public static class UnparsedResultIQ extends IQ {
-        private UnparsedResultIQ(String element, String namespace, CharSequence content) {
-            super(element, namespace);
-            this.content = content;
-        }
-
-        private final CharSequence content;
-
-        public CharSequence getContent() {
-            return content;
-        }
-
-        @Override
-        protected IQChildElementXmlStringBuilder getIQChildElementBuilder(IQChildElementXmlStringBuilder xml) {
-            throw new UnsupportedOperationException();
-        }
-    }
 }

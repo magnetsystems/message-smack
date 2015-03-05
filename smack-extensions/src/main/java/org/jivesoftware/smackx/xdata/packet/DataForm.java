@@ -18,7 +18,7 @@
 package org.jivesoftware.smackx.xdata.packet;
 
 import org.jivesoftware.smack.packet.Element;
-import org.jivesoftware.smack.packet.Packet;
+import org.jivesoftware.smack.packet.Stanza;
 import org.jivesoftware.smack.packet.PacketExtension;
 import org.jivesoftware.smack.util.XmlStringBuilder;
 import org.jivesoftware.smackx.xdata.FormField;
@@ -26,6 +26,7 @@ import org.jivesoftware.smackx.xdata.FormField;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Represents a form that could be use for gathering data as well as for reporting data
@@ -38,7 +39,34 @@ public class DataForm implements PacketExtension {
     public static final String NAMESPACE = "jabber:x:data";
     public static final String ELEMENT = "x";
 
-    private String type;
+    public enum Type {
+        /**
+         * This packet contains a form to fill out. Display it to the user (if your program can).
+         */
+        form,
+
+        /**
+         * The form is filled out, and this is the data that is being returned from the form.
+         */
+        submit,
+
+        /**
+         * The form was cancelled. Tell the asker that piece of information.
+         */
+        cancel,
+
+        /**
+         * Data results being returned from a search, or some other query.
+         */
+        result,
+        ;
+
+        public static Type fromString(String string) {
+            return Type.valueOf(string.toLowerCase(Locale.US));
+        }
+    }
+
+    private Type type;
     private String title;
     private List<String> instructions = new ArrayList<String>();
     private ReportedData reportedData;
@@ -46,27 +74,17 @@ public class DataForm implements PacketExtension {
     private final List<FormField> fields = new ArrayList<FormField>();
     private final List<Element> extensionElements = new ArrayList<Element>();
     
-    public DataForm(String type) {
+    public DataForm(Type type) {
         this.type = type;
     }
     
     /**
      * Returns the meaning of the data within the context. The data could be part of a form
-     * to fill out, a form submission or data results.<p>
-     * 
-     * Possible form types are:
-     * <ul>
-     *  <li>form -> This packet contains a form to fill out. Display it to the user (if your 
-     * program can).</li>
-     *  <li>submit -> The form is filled out, and this is the data that is being returned from 
-     * the form.</li>
-     *  <li>cancel -> The form was cancelled. Tell the asker that piece of information.</li>
-     *  <li>result -> Data results being returned from a search, or some other query.</li>
-     * </ul>
+     * to fill out, a form submission or data results.
      * 
      * @return the form's type.
      */
-    public String getType() {
+    public Type getType() {
         return type; 
     }
     
@@ -125,6 +143,24 @@ public class DataForm implements PacketExtension {
         }
     }
 
+    /**
+     * Return the form field with the given variable name or null.
+     *
+     * @param variableName
+     * @return the form field or null.
+     * @since 4.1
+     */
+    public FormField getField(String variableName) {
+        synchronized (fields) {
+            for (FormField field : fields) {
+                if (variableName.equals(field.getVariable())) {
+                    return field;
+                }
+            }
+        }
+        return null;
+    }
+
     public String getElementName() {
         return ELEMENT;
     }
@@ -169,6 +205,11 @@ public class DataForm implements PacketExtension {
      * @param field the field to add to the form.
      */
     public void addField(FormField field) {
+        String fieldVariableName = field.getVariable();
+        if (fieldVariableName != null && getField(fieldVariableName) != null) {
+            throw new IllegalArgumentException("This data form already contains a form field with the variable name '"
+                            + fieldVariableName + "'");
+        }
         synchronized (fields) {
             fields.add(field);
         }
@@ -207,18 +248,27 @@ public class DataForm implements PacketExtension {
     }
 
     /**
+     * Returns the hidden FORM_TYPE field or null if this data form has none.
+     *
+     * @return the hidden FORM_TYPE field or null.
+     * @since 4.1
+     */
+    public FormField getHiddenFormTypeField() {
+        FormField field = getField(FormField.FORM_TYPE);
+        if (field != null && field.getType() == FormField.Type.hidden) {
+            return field;
+        }
+        return null;
+    }
+
+    /**
      * Returns true if this DataForm has at least one FORM_TYPE field which is
      * hidden. This method is used for sanity checks.
      *
      * @return true if there is at least one field which is hidden.
      */
     public boolean hasHiddenFormTypeField() {
-        for (FormField f : fields) {
-            if (f.getVariable().equals("FORM_TYPE") && f.getType() == FormField.Type.hidden) {
-                return true;
-            }
-        }
-        return false;
+        return getHiddenFormTypeField() != null;
     }
 
     @Override
@@ -255,7 +305,7 @@ public class DataForm implements PacketExtension {
      * @param packet
      * @return the DataForm or null
      */
-    public static DataForm from(Packet packet) {
+    public static DataForm from(Stanza packet) {
         return (DataForm) packet.getExtension(ELEMENT, NAMESPACE);
     }
 

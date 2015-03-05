@@ -29,7 +29,7 @@ import org.jivesoftware.smack.XMPPException.XMPPErrorException;
 import org.jivesoftware.smack.filter.OrFilter;
 import org.jivesoftware.smack.filter.PacketFilter;
 import org.jivesoftware.smack.packet.Message;
-import org.jivesoftware.smack.packet.Packet;
+import org.jivesoftware.smack.packet.Stanza;
 import org.jivesoftware.smack.packet.PacketExtension;
 import org.jivesoftware.smack.packet.IQ.Type;
 import org.jivesoftware.smackx.delay.DelayInformationManager;
@@ -43,12 +43,13 @@ import org.jivesoftware.smackx.pubsub.util.NodeUtils;
 import org.jivesoftware.smackx.shim.packet.Header;
 import org.jivesoftware.smackx.shim.packet.HeadersExtension;
 import org.jivesoftware.smackx.xdata.Form;
+import org.jxmpp.jid.Jid;
 
 abstract public class Node
 {
 	protected XMPPConnection con;
 	protected String id;
-	protected String to;
+	protected Jid to;
 	
 	protected ConcurrentHashMap<ItemEventListener<Item>, PacketListener> itemEventToListenerMap = new ConcurrentHashMap<ItemEventListener<Item>, PacketListener>();
 	protected ConcurrentHashMap<ItemDeleteListener, PacketListener> itemDeleteToListenerMap = new ConcurrentHashMap<ItemDeleteListener, PacketListener>();
@@ -73,7 +74,7 @@ abstract public class Node
 	 * 
 	 *   For example, OpenFire requires the server to be prefixed by <b>pubsub</b>
 	 */
-	void setTo(String toAddress)
+	void setTo(Jid toAddress)
 	{
 		to = toAddress;
 	}
@@ -95,12 +96,13 @@ abstract public class Node
 	 * @throws XMPPErrorException 
 	 * @throws NoResponseException 
 	 * @throws NotConnectedException 
+	 * @throws InterruptedException 
 	 */
-	public ConfigureForm getNodeConfiguration() throws NoResponseException, XMPPErrorException, NotConnectedException
+	public ConfigureForm getNodeConfiguration() throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException
 	{
         PubSub pubSub = createPubsubPacket(Type.get, new NodeExtension(
                         PubSubElementType.CONFIGURE_OWNER, getId()), PubSubNamespace.OWNER);
-		Packet reply = sendPubsubPacket(pubSub);
+		Stanza reply = sendPubsubPacket(pubSub);
 		return NodeUtils.getFormFromPacket(reply, PubSubElementType.CONFIGURE_OWNER);
 	}
 	
@@ -111,8 +113,9 @@ abstract public class Node
 	 * @throws XMPPErrorException 
 	 * @throws NoResponseException 
 	 * @throws NotConnectedException 
+	 * @throws InterruptedException 
 	 */
-	public void sendConfigurationForm(Form submitForm) throws NoResponseException, XMPPErrorException, NotConnectedException
+	public void sendConfigurationForm(Form submitForm) throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException
 	{
         PubSub packet = createPubsubPacket(Type.set, new FormNode(FormNodeType.CONFIGURE_OWNER,
                         getId(), submitForm), PubSubNamespace.OWNER);
@@ -126,8 +129,9 @@ abstract public class Node
 	 * @throws XMPPErrorException 
 	 * @throws NoResponseException if there was no response from the server.
 	 * @throws NotConnectedException 
+	 * @throws InterruptedException 
 	 */
-	public DiscoverInfo discoverInfo() throws NoResponseException, XMPPErrorException, NotConnectedException
+	public DiscoverInfo discoverInfo() throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException
 	{
 		DiscoverInfo info = new DiscoverInfo();
 		info.setTo(to);
@@ -142,9 +146,10 @@ abstract public class Node
 	 * @throws XMPPErrorException 
 	 * @throws NoResponseException 
 	 * @throws NotConnectedException 
+	 * @throws InterruptedException 
 	 * 
 	 */
-	public List<Subscription> getSubscriptions() throws NoResponseException, XMPPErrorException, NotConnectedException
+	public List<Subscription> getSubscriptions() throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException
 	{
         return getSubscriptions(null, null);
 	}
@@ -163,9 +168,10 @@ abstract public class Node
      * @throws NoResponseException
      * @throws XMPPErrorException
      * @throws NotConnectedException
+     * @throws InterruptedException 
      */
     public List<Subscription> getSubscriptions(List<PacketExtension> additionalExtensions, Collection<PacketExtension> returnedExtensions)
-                    throws NoResponseException, XMPPErrorException, NotConnectedException {
+                    throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
         return getSubscriptions(additionalExtensions, returnedExtensions, null);
     }
 
@@ -176,11 +182,12 @@ abstract public class Node
      * @throws XMPPErrorException
      * @throws NoResponseException
      * @throws NotConnectedException
+     * @throws InterruptedException 
      * @see #getSubscriptionsAsOwner(List, Collection)
      * @since 4.1
      */
     public List<Subscription> getSubscriptionsAsOwner() throws NoResponseException, XMPPErrorException,
-                    NotConnectedException {
+                    NotConnectedException, InterruptedException {
         return getSubscriptionsAsOwner(null, null);
     }
 
@@ -202,19 +209,20 @@ abstract public class Node
      * @throws NoResponseException
      * @throws XMPPErrorException
      * @throws NotConnectedException
+     * @throws InterruptedException 
      * @see <a href="http://www.xmpp.org/extensions/xep-0060.html#owner-subscriptions-retrieve">XEP-60 § 8.8.1 -
      *      Retrieve Subscriptions List</a>
      * @since 4.1
      */
     public List<Subscription> getSubscriptionsAsOwner(List<PacketExtension> additionalExtensions,
                     Collection<PacketExtension> returnedExtensions) throws NoResponseException, XMPPErrorException,
-                    NotConnectedException {
+                    NotConnectedException, InterruptedException {
         return getSubscriptions(additionalExtensions, returnedExtensions, PubSubNamespace.OWNER);
     }
 
     private List<Subscription> getSubscriptions(List<PacketExtension> additionalExtensions,
                     Collection<PacketExtension> returnedExtensions, PubSubNamespace pubSubNamespace)
-                    throws NoResponseException, XMPPErrorException, NotConnectedException {
+                    throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
         PubSub pubSub = createPubsubPacket(Type.get, new NodeExtension(PubSubElementType.SUBSCRIPTIONS, getId()), pubSubNamespace);
         if (additionalExtensions != null) {
             for (PacketExtension pe : additionalExtensions) {
@@ -236,9 +244,10 @@ abstract public class Node
 	 * @throws NoResponseException
 	 * @throws XMPPErrorException
 	 * @throws NotConnectedException
+	 * @throws InterruptedException 
 	 */
     public List<Affiliation> getAffiliations() throws NoResponseException, XMPPErrorException,
-                    NotConnectedException {
+                    NotConnectedException, InterruptedException {
         return getAffiliations(null, null);
     }
 
@@ -256,9 +265,10 @@ abstract public class Node
      * @throws NoResponseException
      * @throws XMPPErrorException
      * @throws NotConnectedException
+     * @throws InterruptedException 
      */
     public List<Affiliation> getAffiliations(List<PacketExtension> additionalExtensions, Collection<PacketExtension> returnedExtensions)
-                    throws NoResponseException, XMPPErrorException, NotConnectedException {
+                    throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
         PubSub pubSub = createPubsubPacket(Type.get, new NodeExtension(PubSubElementType.AFFILIATIONS, getId()));
         if (additionalExtensions != null) {
             for (PacketExtension pe : additionalExtensions) {
@@ -289,8 +299,9 @@ abstract public class Node
 	 * @throws XMPPErrorException 
 	 * @throws NoResponseException 
 	 * @throws NotConnectedException 
+	 * @throws InterruptedException 
 	 */
-	public Subscription subscribe(String jid) throws NoResponseException, XMPPErrorException, NotConnectedException
+	public Subscription subscribe(String jid) throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException
 	{
 	    PubSub pubSub = createPubsubPacket(Type.set, new SubscribeExtension(jid, getId()));
 		PubSub reply = sendPubsubPacket(pubSub);
@@ -314,8 +325,9 @@ abstract public class Node
 	 * @throws XMPPErrorException 
 	 * @throws NoResponseException 
 	 * @throws NotConnectedException 
+	 * @throws InterruptedException 
 	 */
-	public Subscription subscribe(String jid, SubscribeForm subForm) throws NoResponseException, XMPPErrorException, NotConnectedException
+	public Subscription subscribe(String jid, SubscribeForm subForm) throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException
 	{
 	    PubSub request = createPubsubPacket(Type.set, new SubscribeExtension(jid, getId()));
 		request.addExtension(new FormNode(FormNodeType.OPTIONS, subForm));
@@ -332,9 +344,10 @@ abstract public class Node
 	 * @throws XMPPErrorException 
 	 * @throws NoResponseException 
 	 * @throws NotConnectedException 
+	 * @throws InterruptedException 
 	 * 
 	 */
-	public void unsubscribe(String jid) throws NoResponseException, XMPPErrorException, NotConnectedException
+	public void unsubscribe(String jid) throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException
 	{
 		unsubscribe(jid, null);
 	}
@@ -347,8 +360,9 @@ abstract public class Node
 	 * @throws XMPPErrorException 
 	 * @throws NoResponseException 
 	 * @throws NotConnectedException 
+	 * @throws InterruptedException 
 	 */
-	public void unsubscribe(String jid, String subscriptionId) throws NoResponseException, XMPPErrorException, NotConnectedException
+	public void unsubscribe(String jid, String subscriptionId) throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException
 	{
 		sendPubsubPacket(createPubsubPacket(Type.set, new UnsubscribeExtension(jid, getId(), subscriptionId)));
 	}
@@ -361,8 +375,9 @@ abstract public class Node
 	 * @throws XMPPErrorException 
 	 * @throws NoResponseException 
 	 * @throws NotConnectedException 
+	 * @throws InterruptedException 
 	 */
-	public SubscribeForm getSubscriptionOptions(String jid) throws NoResponseException, XMPPErrorException, NotConnectedException
+	public SubscribeForm getSubscriptionOptions(String jid) throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException
 	{
 		return getSubscriptionOptions(jid, null);
 	}
@@ -378,9 +393,10 @@ abstract public class Node
 	 * @throws XMPPErrorException 
 	 * @throws NoResponseException 
 	 * @throws NotConnectedException 
+	 * @throws InterruptedException 
 	 * 
 	 */
-	public SubscribeForm getSubscriptionOptions(String jid, String subscriptionId) throws NoResponseException, XMPPErrorException, NotConnectedException
+	public SubscribeForm getSubscriptionOptions(String jid, String subscriptionId) throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException
 	{
 		PubSub packet = sendPubsubPacket(createPubsubPacket(Type.get, new OptionsExtension(jid, getId(), subscriptionId)));
 		FormNode ext = packet.getExtension(PubSubElementType.OPTIONS);
@@ -486,13 +502,13 @@ abstract public class Node
 		return PubSub.createPubsubPacket(to, type, ext, ns);
 	}
 
-	protected PubSub sendPubsubPacket(PubSub packet) throws NoResponseException, XMPPErrorException, NotConnectedException
+	protected PubSub sendPubsubPacket(PubSub packet) throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException
 	{
 		return PubSubManager.sendPubsubPacket(con, packet);
 	}
 
 
-	private static List<String> getSubscriptionIds(Packet packet)
+	private static List<String> getSubscriptionIds(Stanza packet)
 	{
 		HeadersExtension headers = (HeadersExtension)packet.getExtension("headers", "http://jabber.org/protocol/shim");
 		List<String> values = null;
@@ -526,7 +542,7 @@ abstract public class Node
 		}
 		
 		@SuppressWarnings({ "rawtypes", "unchecked" })
-        public void processPacket(Packet packet)
+        public void processPacket(Stanza packet)
 		{
 	        EventElement event = (EventElement)packet.getExtension("event", PubSubNamespace.EVENT.getXmlns());
 			ItemsExtension itemsElem = (ItemsExtension)event.getEvent();
@@ -550,7 +566,7 @@ abstract public class Node
 			listener = eventListener;
 		}
 		
-		public void processPacket(Packet packet)
+		public void processPacket(Stanza packet)
 		{
 	        EventElement event = (EventElement)packet.getExtension("event", PubSubNamespace.EVENT.getXmlns());
 	        
@@ -593,7 +609,7 @@ abstract public class Node
 			listener = eventListener;
 		}
 		
-		public void processPacket(Packet packet)
+		public void processPacket(Stanza packet)
 		{
 	        EventElement event = (EventElement)packet.getExtension("event", PubSubNamespace.EVENT.getXmlns());
 			ConfigurationEvent config = (ConfigurationEvent)event.getEvent();
@@ -624,7 +640,7 @@ abstract public class Node
 			secondElement = secondLevelElement;
 		}
 
-		public boolean accept(Packet packet)
+		public boolean accept(Stanza packet)
 		{
 			if (!(packet instanceof Message))
 				return false;

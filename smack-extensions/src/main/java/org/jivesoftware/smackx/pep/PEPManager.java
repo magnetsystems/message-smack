@@ -26,11 +26,12 @@ import org.jivesoftware.smack.XMPPConnection;
 import org.jivesoftware.smack.filter.PacketExtensionFilter;
 import org.jivesoftware.smack.filter.PacketFilter;
 import org.jivesoftware.smack.packet.Message;
-import org.jivesoftware.smack.packet.Packet;
+import org.jivesoftware.smack.packet.Stanza;
 import org.jivesoftware.smack.packet.IQ.Type;
 import org.jivesoftware.smackx.pep.packet.PEPEvent;
 import org.jivesoftware.smackx.pep.packet.PEPItem;
 import org.jivesoftware.smackx.pep.packet.PEPPubSub;
+import org.jxmpp.jid.Jid;
 
 /**
  *
@@ -70,7 +71,7 @@ public class PEPManager {
     /**
      * Creates a new PEP exchange manager.
      *
-     * @param connection a XMPPConnection which is used to send and receive messages.
+     * @param connection an XMPPConnection which is used to send and receive messages.
      */
     public PEPManager(XMPPConnection connection) {
         this.connection = connection;
@@ -107,8 +108,9 @@ public class PEPManager {
      * 
      * @param item the item to publish.
      * @throws NotConnectedException 
+     * @throws InterruptedException 
      */
-    public void publish(PEPItem item) throws NotConnectedException {
+    public void publish(PEPItem item) throws NotConnectedException, InterruptedException {
         // Create a new message to publish the event.
         PEPPubSub pubSub = new PEPPubSub(item);
         pubSub.setType(Type.set);
@@ -121,7 +123,7 @@ public class PEPManager {
     /**
      * Fires roster exchange listeners.
      */
-    private void firePEPListeners(String from, PEPEvent event) {
+    private void firePEPListeners(Jid from, PEPEvent event) {
         PEPListener[] listeners = null;
         synchronized (pepListeners) {
             listeners = new PEPListener[pepListeners.size()];
@@ -135,7 +137,7 @@ public class PEPManager {
     private void init() {
         // Listens for all roster exchange packets and fire the roster exchange listeners.
         packetListener = new PacketListener() {
-            public void processPacket(Packet packet) {
+            public void processPacket(Stanza packet) {
                 Message message = (Message) packet;
                 PEPEvent event = (PEPEvent) message.getExtension("event", "http://jabber.org/protocol/pubsub#event");
                 // Fire event for roster exchange listeners

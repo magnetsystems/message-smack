@@ -32,7 +32,7 @@ import org.jivesoftware.smack.XMPPConnection;
 import org.jivesoftware.smack.XMPPException;
 import org.jivesoftware.smack.XMPPException.XMPPErrorException;
 import org.jivesoftware.smack.packet.IQ;
-import org.jivesoftware.smack.packet.Packet;
+import org.jivesoftware.smack.packet.Stanza;
 import org.jivesoftware.smack.packet.XMPPError;
 import org.jivesoftware.smackx.bytestreams.socks5.packet.Bytestream;
 import org.jivesoftware.util.ConnectionUtils;
@@ -40,6 +40,10 @@ import org.jivesoftware.util.Protocol;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.jxmpp.jid.DomainBareJid;
+import org.jxmpp.jid.FullJid;
+import org.jxmpp.jid.JidTestUtil;
+import org.jxmpp.jid.impl.JidCreate;
 
 /**
  * Tests for the Socks5BytestreamRequest class.
@@ -49,10 +53,10 @@ import org.junit.Test;
 public class Socks5ByteStreamRequestTest {
 
     // settings
-    String initiatorJID = "initiator@xmpp-server/Smack";
-    String targetJID = "target@xmpp-server/Smack";
-    String xmppServer = "xmpp-server";
-    String proxyJID = "proxy.xmpp-server";
+    static final FullJid initiatorJID = JidTestUtil.DUMMY_AT_EXAMPLE_ORG_SLASH_DUMMYRESOURCE;
+    static final FullJid targetJID = JidTestUtil.FULL_JID_1_RESOURCE_1;
+    static final DomainBareJid xmppServer = JidTestUtil.DOMAIN_BARE_JID_1;
+    static final DomainBareJid proxyJID = JidTestUtil.MUC_EXAMPLE_ORG;
     String proxyAddress = "127.0.0.1";
     String sessionID = "session_id";
 
@@ -64,9 +68,10 @@ public class Socks5ByteStreamRequestTest {
      * Initialize fields used in the tests.
      * @throws XMPPException 
      * @throws SmackException 
+     * @throws InterruptedException 
      */
     @Before
-    public void setup() throws XMPPException, SmackException {
+    public void setup() throws XMPPException, SmackException, InterruptedException {
 
         // build protocol verifier
         protocol = new Protocol();
@@ -109,7 +114,7 @@ public class Socks5ByteStreamRequestTest {
 
         // verify targets response
         assertEquals(1, protocol.getRequests().size());
-        Packet targetResponse = protocol.getRequests().remove(0);
+        Stanza targetResponse = protocol.getRequests().remove(0);
         assertTrue(IQ.class.isInstance(targetResponse));
         assertEquals(initiatorJID, targetResponse.getTo());
         assertEquals(IQ.Type.error, ((IQ) targetResponse).getType());
@@ -153,7 +158,7 @@ public class Socks5ByteStreamRequestTest {
 
         // verify targets response
         assertEquals(1, protocol.getRequests().size());
-        Packet targetResponse = protocol.getRequests().remove(0);
+        Stanza targetResponse = protocol.getRequests().remove(0);
         assertTrue(IQ.class.isInstance(targetResponse));
         assertEquals(initiatorJID, targetResponse.getTo());
         assertEquals(IQ.Type.error, ((IQ) targetResponse).getType());
@@ -173,7 +178,7 @@ public class Socks5ByteStreamRequestTest {
         // build SOCKS5 Bytestream initialization request
         Bytestream bytestreamInitialization = Socks5PacketUtils.createBytestreamInitiation(
                         initiatorJID, targetJID, sessionID);
-        bytestreamInitialization.addStreamHost("invalid." + proxyJID, "127.0.0.2", 7778);
+        bytestreamInitialization.addStreamHost(JidCreate.from("invalid." + proxyJID), "127.0.0.2", 7778);
 
         // get SOCKS5 Bytestream manager for connection
         Socks5BytestreamManager byteStreamManager = Socks5BytestreamManager.getBytestreamManager(connection);
@@ -201,7 +206,7 @@ public class Socks5ByteStreamRequestTest {
 
             // verify targets response
             assertEquals(1, protocol.getRequests().size());
-            Packet targetResponse = protocol.getRequests().remove(0);
+            Stanza targetResponse = protocol.getRequests().remove(0);
             assertTrue(IQ.class.isInstance(targetResponse));
             assertEquals(initiatorJID, targetResponse.getTo());
             assertEquals(IQ.Type.error, ((IQ) targetResponse).getType());
@@ -243,7 +248,7 @@ public class Socks5ByteStreamRequestTest {
 
         // verify targets response
         assertEquals(1, protocol.getRequests().size());
-        Packet targetResponse = protocol.getRequests().remove(0);
+        Stanza targetResponse = protocol.getRequests().remove(0);
         assertEquals(Bytestream.class, targetResponse.getClass());
         assertEquals(initiatorJID, targetResponse.getTo());
         assertEquals(IQ.Type.result, ((Bytestream) targetResponse).getType());
@@ -265,7 +270,7 @@ public class Socks5ByteStreamRequestTest {
         // build SOCKS5 Bytestream initialization request
         Bytestream bytestreamInitialization = Socks5PacketUtils.createBytestreamInitiation(
                         initiatorJID, targetJID, sessionID);
-        bytestreamInitialization.addStreamHost("invalid." + proxyJID, "127.0.0.2", 7778);
+        bytestreamInitialization.addStreamHost(JidCreate.from("invalid." + proxyJID), "127.0.0.2", 7778);
 
         // get SOCKS5 Bytestream manager for connection
         Socks5BytestreamManager byteStreamManager = Socks5BytestreamManager.getBytestreamManager(connection);
@@ -293,7 +298,7 @@ public class Socks5ByteStreamRequestTest {
 
             // verify targets response
             assertEquals(1, protocol.getRequests().size());
-            Packet targetResponse = protocol.getRequests().remove(0);
+            Stanza targetResponse = protocol.getRequests().remove(0);
             assertTrue(IQ.class.isInstance(targetResponse));
             assertEquals(initiatorJID, targetResponse.getTo());
             assertEquals(IQ.Type.error, ((IQ) targetResponse).getType());
@@ -363,7 +368,7 @@ public class Socks5ByteStreamRequestTest {
 
         // verify targets response
         assertEquals(1, protocol.getRequests().size());
-        Packet targetResponse = protocol.getRequests().remove(0);
+        Stanza targetResponse = protocol.getRequests().remove(0);
         assertEquals(Bytestream.class, targetResponse.getClass());
         assertEquals(initiatorJID, targetResponse.getTo());
         assertEquals(IQ.Type.result, ((Bytestream) targetResponse).getType());
@@ -416,7 +421,7 @@ public class Socks5ByteStreamRequestTest {
 
         // verify targets response
         assertEquals(1, protocol.getRequests().size());
-        Packet targetResponse = protocol.getRequests().remove(0);
+        Stanza targetResponse = protocol.getRequests().remove(0);
         assertEquals(Bytestream.class, targetResponse.getClass());
         assertEquals(initiatorJID, targetResponse.getTo());
         assertEquals(IQ.Type.result, ((Bytestream) targetResponse).getType());

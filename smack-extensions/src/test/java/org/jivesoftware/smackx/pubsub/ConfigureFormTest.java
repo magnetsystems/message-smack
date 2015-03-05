@@ -30,8 +30,10 @@ import org.jivesoftware.smack.packet.XMPPError.Condition;
 import org.jivesoftware.smackx.disco.packet.DiscoverInfo;
 import org.jivesoftware.smackx.disco.packet.DiscoverInfo.Identity;
 import org.jivesoftware.smackx.pubsub.packet.PubSub;
+import org.jivesoftware.smackx.xdata.packet.DataForm;
 import org.junit.Assert;
 import org.junit.Test;
+import org.jxmpp.stringprep.XmppStringprepException;
 
 /**
  * 
@@ -43,13 +45,13 @@ public class ConfigureFormTest
 	@Test
 	public void checkChildrenAssocPolicy()
 	{
-		ConfigureForm form = new ConfigureForm(FormType.submit);
+		ConfigureForm form = new ConfigureForm(DataForm.Type.submit);
 		form.setChildrenAssociationPolicy(ChildrenAssociationPolicy.owners);
 		assertEquals(ChildrenAssociationPolicy.owners, form.getChildrenAssociationPolicy());
 	}
 	
 	@Test
-	public void getConfigFormWithInsufficientPriviliges() throws XMPPException, SmackException, IOException
+	public void getConfigFormWithInsufficientPriviliges() throws XMPPException, SmackException, IOException, InterruptedException
 	{
 		ThreadedDummyConnection con = ThreadedDummyConnection.newInstance();
 		PubSubManager mgr = new PubSubManager(con);
@@ -76,7 +78,7 @@ public class ConfigureFormTest
 	}
 
 	@Test (expected=SmackException.class)
-	public void getConfigFormWithTimeout() throws XMPPException, SmackException
+	public void getConfigFormWithTimeout() throws XMPPException, SmackException, InterruptedException, XmppStringprepException
 	{
 		ThreadedDummyConnection con = new ThreadedDummyConnection();
 		PubSubManager mgr = new PubSubManager(con);

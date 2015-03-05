@@ -17,14 +17,16 @@
 
 package org.jivesoftware.smack.filter;
 
-import org.jivesoftware.smack.packet.Packet;
+import org.jivesoftware.smack.packet.Stanza;
 import org.jivesoftware.smack.util.StringUtils;
 
 /**
  * Filters for packets with a particular packet ID.
  *
  * @author Matt Tucker
+ * @deprecated use {@link StanzaIdFilter} instead.
  */
+@Deprecated
 public class PacketIDFilter implements PacketFilter {
 
     private final String packetID;
@@ -33,28 +35,30 @@ public class PacketIDFilter implements PacketFilter {
      * Creates a new packet ID filter using the specified packet's ID.
      *
      * @param packet the packet which the ID is taken from.
+     * @deprecated use {@link StanzaIdfilter(Stanza)} instead.
      */
-    public PacketIDFilter(Packet packet) {
-        this(packet.getPacketID());
+    @Deprecated
+    public PacketIDFilter(Stanza packet) {
+        this(packet.getStanzaId());
     }
 
     /**
      * Creates a new packet ID filter using the specified packet ID.
      *
      * @param packetID the packet ID to filter for.
+     * @deprecated use {@link StanzaIdFilter(String)} instead.
      */
+    @Deprecated
     public PacketIDFilter(String packetID) {
-        if (StringUtils.isNullOrEmpty(packetID)) {
-            throw new IllegalArgumentException("Packet ID must not be null or empty.");
-        }
+        StringUtils.requireNotNullOrEmpty(packetID, "Packet ID must not be null or empty.");
         this.packetID = packetID;
     }
 
-    public boolean accept(Packet packet) {
-        return packetID.equals(packet.getPacketID());
+    public boolean accept(Stanza packet) {
+        return packetID.equals(packet.getStanzaId());
     }
 
     public String toString() {
-        return "PacketIDFilter by id: " + packetID;
+        return getClass().getSimpleName() + ": id=" + packetID;
     }
 }

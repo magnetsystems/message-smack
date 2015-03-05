@@ -32,7 +32,7 @@ import org.jivesoftware.smack.filter.PacketFilter;
 import org.jivesoftware.smack.filter.PacketTypeFilter;
 import org.jivesoftware.smack.packet.IQ;
 import org.jivesoftware.smack.packet.Message;
-import org.jivesoftware.smack.packet.Packet;
+import org.jivesoftware.smack.packet.Stanza;
 import org.jivesoftware.smack.packet.XMPPError;
 import org.jivesoftware.smack.util.stringencoder.Base64;
 import org.jivesoftware.smackx.bytestreams.BytestreamSession;
@@ -40,6 +40,7 @@ import org.jivesoftware.smackx.bytestreams.ibb.packet.Close;
 import org.jivesoftware.smackx.bytestreams.ibb.packet.Data;
 import org.jivesoftware.smackx.bytestreams.ibb.packet.DataPacketExtension;
 import org.jivesoftware.smackx.bytestreams.ibb.packet.Open;
+import org.jxmpp.jid.Jid;
 
 /**
  * InBandBytestreamSession class represents an In-Band Bytestream session.
@@ -73,7 +74,7 @@ public class InBandBytestreamSession implements BytestreamSession {
     private IBBOutputStream outputStream;
 
     /* JID of the remote peer */
-    private String remoteJID;
+    private Jid remoteJID;
 
     /* flag to close both streams if one of them is closed */
     private boolean closeBothStreamsEnabled = false;
@@ -89,7 +90,7 @@ public class InBandBytestreamSession implements BytestreamSession {
      * @param remoteJID JID of the remote peer
      */
     protected InBandBytestreamSession(XMPPConnection connection, Open byteStreamRequest,
-                    String remoteJID) {
+                    Jid remoteJID) {
         this.connection = connection;
         this.byteStreamRequest = byteStreamRequest;
         this.remoteJID = remoteJID;
@@ -160,8 +161,9 @@ public class InBandBytestreamSession implements BytestreamSession {
      * 
      * @param closeRequest the close request from the remote peer
      * @throws NotConnectedException 
+     * @throws InterruptedException 
      */
-    protected void closeByPeer(Close closeRequest) throws NotConnectedException {
+    protected void closeByPeer(Close closeRequest) throws NotConnectedException, InterruptedException {
 
         /*
          * close streams without flushing them, because stream is already considered closed on the
@@ -447,7 +449,7 @@ public class InBandBytestreamSession implements BytestreamSession {
 
                 private long lastSequence = -1;
 
-                public void processPacket(Packet packet) throws NotConnectedException {
+                public void processPacket(Stanza packet) throws NotConnectedException, InterruptedException {
                     // get data packet extension
                     DataPacketExtension data = ((Data) packet).getDataPacketExtension();
 
@@ -508,7 +510,7 @@ public class InBandBytestreamSession implements BytestreamSession {
         protected PacketListener getDataPacketListener() {
             return new PacketListener() {
 
-                public void processPacket(Packet packet) {
+                public void processPacket(Stanza packet) {
                     // get data packet extension
                     DataPacketExtension data = (DataPacketExtension) packet.getExtension(
                                     DataPacketExtension.ELEMENT,
@@ -553,9 +555,9 @@ public class InBandBytestreamSession implements BytestreamSession {
      */
     private class IBBDataPacketFilter implements PacketFilter {
 
-        public boolean accept(Packet packet) {
+        public boolean accept(Stanza packet) {
             // sender equals remote peer
-            if (!packet.getFrom().equalsIgnoreCase(remoteJID)) {
+            if (!packet.getFrom().equals(remoteJID)) {
                 return false;
             }
 
@@ -613,8 +615,9 @@ public class InBandBytestreamSession implements BytestreamSession {
          * @param data the data packet
          * @throws IOException if an I/O error occurred while sending or if the stream is closed
          * @throws NotConnectedException 
+         * @throws InterruptedException 
          */
-        protected abstract void writeToXML(DataPacketExtension data) throws IOException, NotConnectedException;
+        protected abstract void writeToXML(DataPacketExtension data) throws IOException, NotConnectedException, InterruptedException;
 
         public synchronized void write(int b) throws IOException {
             if (this.isClosed) {
@@ -718,7 +721,7 @@ public class InBandBytestreamSession implements BytestreamSession {
             try {
                 writeToXML(data);
             }
-            catch (NotConnectedException e) {
+            catch (InterruptedException | NotConnectedException e) {
                 IOException ioException = new IOException();
                 ioException.initCause(e);
                 throw ioException;
@@ -803,7 +806,7 @@ public class InBandBytestreamSession implements BytestreamSession {
     private class MessageIBBOutputStream extends IBBOutputStream {
 
         @Override
-        protected synchronized void writeToXML(DataPacketExtension data) throws NotConnectedException {
+        protected synchronized void writeToXML(DataPacketExtension data) throws NotConnectedException, InterruptedException {
             // create message stanza containing data packet
             Message message = new Message(remoteJID);
             message.addExtension(data);

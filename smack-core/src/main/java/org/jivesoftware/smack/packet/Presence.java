@@ -19,6 +19,7 @@ package org.jivesoftware.smack.packet;
 
 import java.util.Locale;
 
+import org.jivesoftware.smack.util.Objects;
 import org.jivesoftware.smack.util.XmlStringBuilder;
 
 /**
@@ -52,10 +53,9 @@ import org.jivesoftware.smack.util.XmlStringBuilder;
  * the user's current presence status. Second, they are used to subscribe and
  * unsubscribe users from the roster.
  *
- * @see RosterPacket
  * @author Matt Tucker
  */
-public final class Presence extends Packet {
+public final class Presence extends Stanza {
 
     public static final String ELEMENT = "presence";
 
@@ -132,10 +132,7 @@ public final class Presence extends Packet {
      * @param type the type of the presence packet.
      */
     public void setType(Type type) {
-        if(type == null) {
-            throw new NullPointerException("Type cannot be null");
-        }
-        this.type = type;
+        this.type = Objects.requireNonNull(type, "Type cannot be null");
     }
 
     /**
@@ -183,13 +180,14 @@ public final class Presence extends Packet {
     }
 
     /**
-     * Returns the mode of the presence update, or <tt>null</tt> if the mode is not set.
-     * A null presence mode value is interpreted to be the same thing as
-     * {@link Presence.Mode#available}.
+     * Returns the mode of the presence update.
      *
      * @return the mode.
      */
     public Mode getMode() {
+        if (mode == null) {
+            return Mode.available;
+        }
         return mode;
     }
 

@@ -26,16 +26,16 @@ import org.jivesoftware.smack.SmackException.NotConnectedException;
 import org.jivesoftware.smack.ConnectionCreationListener;
 import org.jivesoftware.smack.XMPPConnection;
 import org.jivesoftware.smack.Manager;
-import org.jivesoftware.smack.PacketListener;
 import org.jivesoftware.smack.XMPPConnectionRegistry;
 import org.jivesoftware.smack.XMPPException.XMPPErrorException;
-import org.jivesoftware.smack.filter.AndFilter;
-import org.jivesoftware.smack.filter.IQTypeFilter;
-import org.jivesoftware.smack.filter.PacketFilter;
-import org.jivesoftware.smack.filter.PacketTypeFilter;
-import org.jivesoftware.smack.packet.Packet;
+import org.jivesoftware.smack.iqrequest.AbstractIqRequestHandler;
+import org.jivesoftware.smack.iqrequest.IQRequestHandler.Mode;
+import org.jivesoftware.smack.packet.IQ;
+import org.jivesoftware.smack.packet.XMPPError;
+import org.jivesoftware.smack.packet.XMPPError.Condition;
 import org.jivesoftware.smackx.disco.ServiceDiscoveryManager;
 import org.jivesoftware.smackx.iqversion.packet.Version;
+import org.jxmpp.jid.Jid;
 
 /**
  * A Version Manager that automatically responds to version IQs with a predetermined reply.
@@ -55,8 +55,6 @@ import org.jivesoftware.smackx.iqversion.packet.Version;
  */
 public class VersionManager extends Manager {
     private static final Map<XMPPConnection, VersionManager> INSTANCES = new WeakHashMap<XMPPConnection, VersionManager>();
-
-    private static final PacketFilter PACKET_FILTER = new AndFilter(new PacketTypeFilter(Version.class), IQTypeFilter.GET);
 
     private static Version defaultVersion;
 
@@ -86,19 +84,17 @@ public class VersionManager extends Manager {
         ServiceDiscoveryManager sdm = ServiceDiscoveryManager.getInstanceFor(connection);
         sdm.addFeature(Version.NAMESPACE);
 
-        connection.addAsyncPacketListener(new PacketListener() {
-            /**
-             * Sends a Version reply on request
-             * @throws NotConnectedException 
-             */
-            public void processPacket(Packet packet) throws NotConnectedException {
-                if (ourVersion == null)
-                    return;
+        connection.registerIQRequestHandler(new AbstractIqRequestHandler(Version.ELEMENT, Version.NAMESPACE, IQ.Type.get,
+                        Mode.async) {
+            @Override
+            public IQ handleIQRequest(IQ iqRequest) {
+                if (ourVersion == null) {
+                    return IQ.createErrorResponse(iqRequest, new XMPPError(Condition.not_acceptable));
+                }
 
-                connection().sendPacket(Version.createResultFor(packet, ourVersion));
+                return Version.createResultFor(iqRequest, ourVersion);
             }
-        }
-        , PACKET_FILTER);
+        });
     }
 
     public static synchronized VersionManager getInstanceFor(XMPPConnection connection) {
@@ -128,8 +124,8 @@ public class VersionManager extends Manager {
         ourVersion = null;
     }
 
-    public boolean isSupported(String jid) throws NoResponseException, XMPPErrorException,
-                    NotConnectedException {
+    public boolean isSupported(Jid jid) throws NoResponseException, XMPPErrorException,
+                    NotConnectedException, InterruptedException {
         return ServiceDiscoveryManager.getInstanceFor(connection()).supportsFeature(jid,
                         Version.NAMESPACE);
     }
@@ -142,9 +138,10 @@ public class VersionManager extends Manager {
      * @throws NoResponseException
      * @throws XMPPErrorException
      * @throws NotConnectedException
+     * @throws InterruptedException 
      */
-    public Version getVersion(String jid) throws NoResponseException, XMPPErrorException,
-                    NotConnectedException {
+    public Version getVersion(Jid jid) throws NoResponseException, XMPPErrorException,
+                    NotConnectedException, InterruptedException {
         if (!isSupported(jid)) {
             return null;
         }

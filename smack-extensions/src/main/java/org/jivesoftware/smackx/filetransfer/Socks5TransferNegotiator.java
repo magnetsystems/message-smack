@@ -31,12 +31,14 @@ import org.jivesoftware.smack.filter.FromMatchesFilter;
 import org.jivesoftware.smack.filter.PacketFilter;
 import org.jivesoftware.smack.filter.PacketTypeFilter;
 import org.jivesoftware.smack.packet.IQ;
-import org.jivesoftware.smack.packet.Packet;
+import org.jivesoftware.smack.packet.Stanza;
+import org.jivesoftware.smack.util.Objects;
 import org.jivesoftware.smackx.bytestreams.socks5.Socks5BytestreamManager;
 import org.jivesoftware.smackx.bytestreams.socks5.Socks5BytestreamRequest;
 import org.jivesoftware.smackx.bytestreams.socks5.Socks5BytestreamSession;
 import org.jivesoftware.smackx.bytestreams.socks5.packet.Bytestream;
 import org.jivesoftware.smackx.si.packet.StreamInitiation;
+import org.jxmpp.jid.Jid;
 
 /**
  * Negotiates a SOCKS5 Bytestream to be used for file transfers. The implementation is based on the
@@ -57,7 +59,7 @@ public class Socks5TransferNegotiator extends StreamNegotiator {
     }
 
     @Override
-    public OutputStream createOutgoingStream(String streamID, String initiator, String target) throws NoResponseException, SmackException, XMPPException
+    public OutputStream createOutgoingStream(String streamID, Jid initiator, Jid target) throws NoResponseException, SmackException, XMPPException
                     {
         try {
             return this.manager.establishSession(target, streamID).getOutputStream();
@@ -79,12 +81,12 @@ public class Socks5TransferNegotiator extends StreamNegotiator {
          */
         this.manager.ignoreBytestreamRequestOnce(initiation.getSessionID());
 
-        Packet streamInitiation = initiateIncomingStream(this.connection, initiation);
+        Stanza streamInitiation = initiateIncomingStream(this.connection, initiation);
         return negotiateIncomingStream(streamInitiation);
     }
 
     @Override
-    public PacketFilter getInitiationPacketFilter(final String from, String streamID) {
+    public PacketFilter getInitiationPacketFilter(final Jid from, String streamID) {
         /*
          * this method is always called prior to #negotiateIncomingStream() so the SOCKS5
          * InitiationListener must ignore the next SOCKS5 Bytestream request with the given session
@@ -101,7 +103,7 @@ public class Socks5TransferNegotiator extends StreamNegotiator {
     }
 
     @Override
-    InputStream negotiateIncomingStream(Packet streamInitiation) throws InterruptedException,
+    InputStream negotiateIncomingStream(Stanza streamInitiation) throws InterruptedException,
                     SmackException, XMPPErrorException {
         // build SOCKS5 Bytestream request
         Socks5BytestreamRequest request = new ByteStreamRequest(this.manager,
@@ -127,18 +129,15 @@ public class Socks5TransferNegotiator extends StreamNegotiator {
      */
     private static class BytestreamSIDFilter extends PacketTypeFilter {
 
-        private String sessionID;
+        private final String sessionID;
 
         public BytestreamSIDFilter(String sessionID) {
             super(Bytestream.class);
-            if (sessionID == null) {
-                throw new IllegalArgumentException("StreamID cannot be null");
-            }
-            this.sessionID = sessionID;
+            this.sessionID = Objects.requireNonNull(sessionID, "SessionID cannot be null");
         }
 
         @Override
-        public boolean accept(Packet packet) {
+        public boolean accept(Stanza packet) {
             if (super.accept(packet)) {
                 Bytestream bytestream = (Bytestream) packet;
 

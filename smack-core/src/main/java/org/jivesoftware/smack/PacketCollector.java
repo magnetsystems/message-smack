@@ -19,13 +19,11 @@ package org.jivesoftware.smack;
 
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.jivesoftware.smack.SmackException.NoResponseException;
 import org.jivesoftware.smack.XMPPException.XMPPErrorException;
 import org.jivesoftware.smack.filter.PacketFilter;
-import org.jivesoftware.smack.packet.Packet;
+import org.jivesoftware.smack.packet.Stanza;
 
 /**
  * Provides a mechanism to collect packets into a result queue that pass a
@@ -43,10 +41,14 @@ import org.jivesoftware.smack.packet.Packet;
  */
 public class PacketCollector {
 
-    private static final Logger LOGGER = Logger.getLogger(PacketCollector.class.getName());
-
     private final PacketFilter packetFilter;
-    private final ArrayBlockingQueue<Packet> resultQueue;
+    private final ArrayBlockingQueue<Stanza> resultQueue;
+
+    /**
+     * The packet collector which timeout for the next result will get reset once this collector collects a stanza.
+     */
+    private final PacketCollector collectorToReset;
+
     private final XMPPConnection connection;
 
     private boolean cancelled = false;
@@ -56,24 +58,13 @@ public class PacketCollector {
      * all packets will match this collector.
      *
      * @param connection the connection the collector is tied to.
-     * @param packetFilter determines which packets will be returned by this collector.
+     * @param configuration the configuration used to construct this collector
      */
-    protected PacketCollector(XMPPConnection connection, PacketFilter packetFilter) {
-        this(connection, packetFilter, SmackConfiguration.getPacketCollectorSize());
-    }
-
-    /**
-     * Creates a new packet collector. If the packet filter is <tt>null</tt>, then
-     * all packets will match this collector.
-     *
-     * @param connection the connection the collector is tied to.
-     * @param packetFilter determines which packets will be returned by this collector.
-     * @param maxSize the maximum number of packets that will be stored in the collector.
-     */
-    protected PacketCollector(XMPPConnection connection, PacketFilter packetFilter, int maxSize) {
+    protected PacketCollector(XMPPConnection connection, Configuration configuration) {
         this.connection = connection;
-        this.packetFilter = packetFilter;
-        this.resultQueue = new ArrayBlockingQueue<Packet>(maxSize);
+        this.packetFilter = configuration.packetFilter;
+        this.resultQueue = new ArrayBlockingQueue<>(configuration.size);
+        this.collectorToReset = configuration.collectorToReset;
     }
 
     /**
@@ -108,7 +99,7 @@ public class PacketCollector {
      *      results.
      */
     @SuppressWarnings("unchecked")
-    public <P extends Packet> P pollResult() {
+    public <P extends Stanza> P pollResult() {
         return (P) resultQueue.poll();
     }
 
@@ -123,7 +114,7 @@ public class PacketCollector {
      * @return the next available packet.
      * @throws XMPPErrorException in case an error response.
      */
-    public <P extends Packet> P pollResultOrThrow() throws XMPPErrorException {
+    public <P extends Stanza> P pollResultOrThrow() throws XMPPErrorException {
         P result = pollResult();
         if (result != null) {
             XMPPErrorException.ifHasErrorThenThrow(result);
@@ -136,17 +127,14 @@ public class PacketCollector {
      * available.
      * 
      * @return the next available packet.
+     * @throws InterruptedException 
      */
     @SuppressWarnings("unchecked")
-    public <P extends Packet> P nextResultBlockForever() {
+    public <P extends Stanza> P nextResultBlockForever() throws InterruptedException {
+        throwIfCancelled();
         P res = null;
         while (res == null) {
-            try {
-                res = (P) resultQueue.take();
-            } catch (InterruptedException e) {
-                LOGGER.log(Level.FINE,
-                                "nextResultBlockForever was interrupted", e);
-            }
+            res = (P) resultQueue.take();
         }
         return res;
     }
@@ -155,33 +143,38 @@ public class PacketCollector {
      * Returns the next available packet. The method call will block until the connection's default
      * timeout has elapsed.
      * 
-     * @return the next availabe packet.
+     * @return the next available packet.
+     * @throws InterruptedException 
      */
-    public <P extends Packet> P nextResult() {
+    public <P extends Stanza> P nextResult() throws InterruptedException {
         return nextResult(connection.getPacketReplyTimeout());
     }
+
+    private volatile long waitStart;
 
     /**
      * Returns the next available packet. The method call will block (not return)
      * until a packet is available or the <tt>timeout</tt> has elapsed. If the
      * timeout elapses without a result, <tt>null</tt> will be returned.
      *
+     * @param timeout the timeout in milliseconds.
      * @return the next available packet.
+     * @throws InterruptedException 
      */
     @SuppressWarnings("unchecked")
-    public <P extends Packet> P nextResult(long timeout) {
+    public <P extends Stanza> P nextResult(long timeout) throws InterruptedException {
+        throwIfCancelled();
         P res = null;
         long remainingWait = timeout;
-        final long waitStart = System.currentTimeMillis();
-        while (res == null && remainingWait > 0) {
-            try {
-                res = (P) resultQueue.poll(remainingWait, TimeUnit.MILLISECONDS);
-                remainingWait = timeout - (System.currentTimeMillis() - waitStart);
-            } catch (InterruptedException e) {
-                LOGGER.log(Level.FINE, "nextResult was interrupted", e);
+        waitStart = System.currentTimeMillis();
+        do {
+            res = (P) resultQueue.poll(remainingWait, TimeUnit.MILLISECONDS);
+            if (res != null) {
+                return res;
             }
-        }
-        return res;
+            remainingWait = timeout - (System.currentTimeMillis() - waitStart);
+        } while (remainingWait > 0);
+        return null;
     }
 
     /**
@@ -192,8 +185,9 @@ public class PacketCollector {
      * @return the next available packet.
      * @throws XMPPErrorException in case an error response.
      * @throws NoResponseException if there was no response from the server.
+     * @throws InterruptedException 
      */
-    public <P extends Packet> P nextResultOrThrow() throws NoResponseException, XMPPErrorException {
+    public <P extends Stanza> P nextResultOrThrow() throws NoResponseException, XMPPErrorException, InterruptedException {
         return nextResultOrThrow(connection.getPacketReplyTimeout());
     }
 
@@ -205,12 +199,13 @@ public class PacketCollector {
      * @return the next available packet.
      * @throws NoResponseException if there was no response from the server.
      * @throws XMPPErrorException in case an error response.
+     * @throws InterruptedException 
      */
-    public <P extends Packet> P nextResultOrThrow(long timeout) throws NoResponseException, XMPPErrorException {
+    public <P extends Stanza> P nextResultOrThrow(long timeout) throws NoResponseException, XMPPErrorException, InterruptedException {
         P result = nextResult(timeout);
         cancel();
         if (result == null) {
-            throw new NoResponseException(connection);
+            throw NoResponseException.newWith(connection, this);
         }
 
         XMPPErrorException.ifHasErrorThenThrow(result);
@@ -219,17 +214,90 @@ public class PacketCollector {
     }
 
     /**
+     * Get the number of collected stanzas this packet collector has collected so far.
+     * 
+     * @return the count of collected stanzas.
+     * @since 4.1
+     */
+    public int getCollectedCount() {
+        return resultQueue.size();
+    }
+
+    /**
      * Processes a packet to see if it meets the criteria for this packet collector.
      * If so, the packet is added to the result queue.
      *
      * @param packet the packet to process.
      */
-    protected void processPacket(Packet packet) {
+    protected void processPacket(Stanza packet) {
         if (packetFilter == null || packetFilter.accept(packet)) {
         	while (!resultQueue.offer(packet)) {
         		// Since we know the queue is full, this poll should never actually block.
         		resultQueue.poll();
         	}
+            if (collectorToReset != null) {
+                collectorToReset.waitStart = System.currentTimeMillis();
+            }
+        }
+    }
+
+    private final void throwIfCancelled() {
+        if (cancelled) {
+            throw new IllegalStateException("Packet collector already cancelled");
+        }
+    }
+
+    /**
+     * Get a new packet collector configuration instance.
+     * 
+     * @return a new packet collector configuration.
+     */
+    public static Configuration newConfiguration() {
+        return new Configuration();
+    }
+
+    public static class Configuration {
+        private PacketFilter packetFilter;
+        private int size = SmackConfiguration.getPacketCollectorSize();
+        private PacketCollector collectorToReset;
+
+        private Configuration() {
+        }
+
+        /**
+         * Set the packet filter used by this collector. If <code>null</code>, then all packets will
+         * get collected by this collector.
+         * 
+         * @param packetFilter
+         * @return a reference to this configuration.
+         */
+        public Configuration setPacketFilter(PacketFilter packetFilter) {
+            this.packetFilter = packetFilter;
+            return this;
+        }
+
+        /**
+         * Set the maximum size of this collector, i.e. how many stanzas this collector will collect
+         * before dropping old ones.
+         * 
+         * @param size
+         * @return a reference to this configuration.
+         */
+        public Configuration setSize(int size) {
+            this.size = size;
+            return this;
+        }
+
+        /**
+         * Set the collector which timeout for the next result is reset once this collector collects
+         * a packet.
+         * 
+         * @param collector
+         * @return a reference to this configuration.
+         */
+        public Configuration setCollectorToReset(PacketCollector collector) {
+            this.collectorToReset = collector;
+            return this;
         }
     }
 }

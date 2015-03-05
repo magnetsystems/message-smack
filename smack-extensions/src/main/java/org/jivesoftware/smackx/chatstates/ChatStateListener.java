@@ -17,8 +17,8 @@
 
 package org.jivesoftware.smackx.chatstates;
 
-import org.jivesoftware.smack.Chat;
-import org.jivesoftware.smack.ChatMessageListener;
+import org.jivesoftware.smack.chat.Chat;
+import org.jivesoftware.smack.chat.ChatMessageListener;
 
 /**
  * Events for when the state of a user in a chat changes.

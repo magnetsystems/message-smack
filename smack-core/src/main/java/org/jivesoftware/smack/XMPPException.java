@@ -17,7 +17,7 @@
 
 package org.jivesoftware.smack;
 
-import org.jivesoftware.smack.packet.Packet;
+import org.jivesoftware.smack.packet.Stanza;
 import org.jivesoftware.smack.packet.StreamError;
 import org.jivesoftware.smack.packet.XMPPError;
 
@@ -129,12 +129,7 @@ public abstract class XMPPException extends Exception {
             }
         }
 
-        @Override
-        public String toString() {
-            return getMessage();
-        }
-
-        public static void ifHasErrorThenThrow(Packet packet) throws XMPPErrorException {
+        public static void ifHasErrorThenThrow(Stanza packet) throws XMPPErrorException {
             XMPPError xmppError = packet.getError();
             if (xmppError != null) {
                 throw new XMPPErrorException(xmppError);
@@ -157,7 +152,7 @@ public abstract class XMPPException extends Exception {
          * @param streamError the root cause of the exception.
          */
         public StreamErrorException(StreamError streamError) {
-            super();
+            super(streamError.toString());
             this.streamError = streamError;
         }
 
@@ -171,14 +166,5 @@ public abstract class XMPPException extends Exception {
             return streamError;
         }
 
-        @Override
-        public String getMessage() {
-            return streamError.toString();
-        }
-
-        @Override
-        public String toString() {
-            return getMessage();
-        }
     }
 }

@@ -19,17 +19,22 @@ package org.jivesoftware.smackx.receipts;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.jivesoftware.smack.test.util.CharsequenceEquals.equalsCharSequence;
 
 import java.util.Properties;
 
 import org.jivesoftware.smack.DummyConnection;
 import org.jivesoftware.smack.packet.Message;
-import org.jivesoftware.smack.packet.Packet;
+import org.jivesoftware.smack.packet.Stanza;
+import org.jivesoftware.smack.test.util.WaitForPacketListener;
 import org.jivesoftware.smack.util.PacketParserUtils;
 import org.jivesoftware.smackx.InitExtensions;
-import org.jivesoftware.smackx.disco.ServiceDiscoveryManager;
+import org.jivesoftware.smackx.receipts.DeliveryReceiptManager.AutoReceiptMode;
 import org.junit.Test;
+import org.jxmpp.jid.Jid;
+import org.jxmpp.jid.impl.JidCreate;
 import org.xmlpull.v1.XmlPullParser;
 
 import com.jamesmurty.utils.XMLBuilder;
@@ -53,7 +58,7 @@ public class DeliveryReceiptTest extends InitExtensions {
             .asString(outputProperties);
         
         parser = PacketParserUtils.getParserFor(control);
-        Packet p = PacketParserUtils.parseMessage(parser);
+        Message p = PacketParserUtils.parseMessage(parser);
 
         DeliveryReceiptRequest drr = (DeliveryReceiptRequest)p.getExtension(
                         DeliveryReceiptRequest.ELEMENT, DeliveryReceipt.NAMESPACE);
@@ -61,7 +66,7 @@ public class DeliveryReceiptTest extends InitExtensions {
 
         assertTrue(DeliveryReceiptManager.hasDeliveryReceiptRequest(p));
 
-        Message m = new Message("romeo@montague.com", Message.Type.normal);
+        Message m = new Message(JidCreate.from("romeo@montague.com"), Message.Type.normal);
         assertFalse(DeliveryReceiptManager.hasDeliveryReceiptRequest(m));
         DeliveryReceiptRequest.addTo(m);
         assertTrue(DeliveryReceiptManager.hasDeliveryReceiptRequest(m));
@@ -71,31 +76,27 @@ public class DeliveryReceiptTest extends InitExtensions {
     public void receiptManagerListenerTest() throws Exception {
         DummyConnection c = new DummyConnection();
         c.connect();
-        // Ensure SDM is created for this connection
-        ServiceDiscoveryManager.getInstanceFor(c);
         DeliveryReceiptManager drm = DeliveryReceiptManager.getInstanceFor(c);
 
         TestReceiptReceivedListener rrl = new TestReceiptReceivedListener();
         drm.addReceiptReceivedListener(rrl);
 
-        Message m = new Message("romeo@montague.com", Message.Type.normal);
-        m.setFrom("julia@capulet.com");
-        m.setPacketID("reply-id");
+        Message m = new Message(JidCreate.from("romeo@montague.com"), Message.Type.normal);
+        m.setFrom(JidCreate.from("julia@capulet.com"));
+        m.setStanzaId("reply-id");
         m.addExtension(new DeliveryReceipt("original-test-id"));
-        drm.processPacket(m);
+        c.processPacket(m);
 
-        // ensure the listener got called
-        assertEquals("original-test-id", rrl.receiptId);
+        rrl.waitUntilInvocationOrTimeout();
     }
 
-    private static class TestReceiptReceivedListener implements ReceiptReceivedListener {
-        public String receiptId = null;
+    private static class TestReceiptReceivedListener extends WaitForPacketListener implements ReceiptReceivedListener {
         @Override
-        public void onReceiptReceived(String fromJid, String toJid, String receiptId, Packet receipt) {
-            assertEquals("julia@capulet.com", fromJid);
-            assertEquals("romeo@montague.com", toJid);
+        public void onReceiptReceived(Jid fromJid, Jid toJid, String receiptId, Stanza receipt) {
+            assertThat("julia@capulet.com", equalsCharSequence(fromJid));
+            assertThat("romeo@montague.com", equalsCharSequence(toJid));
             assertEquals("original-test-id", receiptId);
-            this.receiptId = receiptId;
+            reportInvoked();
         }
     }
 
@@ -103,27 +104,23 @@ public class DeliveryReceiptTest extends InitExtensions {
     public void receiptManagerAutoReplyTest() throws Exception {
         DummyConnection c = new DummyConnection();
         c.connect();
-        // Ensure SDM is created for this connection
-        ServiceDiscoveryManager.getInstanceFor(c);
         DeliveryReceiptManager drm = DeliveryReceiptManager.getInstanceFor(c);
 
-        drm.enableAutoReceipts();
-        assertTrue(drm.getAutoReceiptsEnabled());
+        drm.setAutoReceiptMode(AutoReceiptMode.always);
+        assertEquals(AutoReceiptMode.always, drm.getAutoReceiptMode());
 
         // test auto-receipts
-        Message m = new Message("julia@capulet.com", Message.Type.normal);
-        m.setFrom("romeo@montague.com");
-        m.setPacketID("test-receipt-request");
+        Message m = new Message(JidCreate.from("julia@capulet.com"), Message.Type.normal);
+        m.setFrom(JidCreate.from("romeo@montague.com"));
+        m.setStanzaId("test-receipt-request");
         DeliveryReceiptRequest.addTo(m);
 
         // the DRM will send a reply-packet
-        assertEquals(0, c.getNumberOfSentPackets());
-        drm.processPacket(m);
-        assertEquals(1, c.getNumberOfSentPackets());
+        c.processPacket(m);
 
-        Packet reply = c.getSentPacket();
-        DeliveryReceipt r = (DeliveryReceipt)reply.getExtension("received", "urn:xmpp:receipts");
-        assertEquals("romeo@montague.com", reply.getTo());
+        Stanza reply = c.getSentPacket();
+        DeliveryReceipt r = DeliveryReceipt.from(reply);
+        assertThat("romeo@montague.com", equalsCharSequence(reply.getTo()));
         assertEquals("test-receipt-request", r.getId());
     }
 }

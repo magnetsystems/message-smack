@@ -21,14 +21,14 @@ import java.util.concurrent.TimeUnit;
 
 import org.jivesoftware.smack.PacketListener;
 import org.jivesoftware.smack.SmackException.NotConnectedException;
-import org.jivesoftware.smack.packet.Packet;
+import org.jivesoftware.smack.packet.Stanza;
 
 public class WaitForPacketListener implements PacketListener {
 
     private CountDownLatch latch = new CountDownLatch(1);
 
     @Override
-    public void processPacket(Packet packet) throws NotConnectedException {
+    public void processPacket(Stanza packet) throws NotConnectedException {
         reportInvoked();
     }
 
@@ -43,13 +43,12 @@ public class WaitForPacketListener implements PacketListener {
 
     public void waitUntilInvocationOrTimeout() {
         try {
-            boolean res = latch.await(30, TimeUnit.SECONDS);
+            boolean res = latch.await(300, TimeUnit.SECONDS);
             if (!res) {
                 throw new IllegalStateException("Latch timed out before it reached zero");
             }
         }
         catch (InterruptedException e) {
-            // TODO better handling of spurious interrupts
             throw new IllegalStateException(e);
         }
     }

@@ -30,6 +30,7 @@ import org.jivesoftware.smack.packet.XMPPError;
 import org.jivesoftware.smackx.bytestreams.BytestreamRequest;
 import org.jivesoftware.smackx.bytestreams.socks5.packet.Bytestream;
 import org.jivesoftware.smackx.bytestreams.socks5.packet.Bytestream.StreamHost;
+import org.jxmpp.jid.Jid;
 import org.jxmpp.util.cache.Cache;
 import org.jxmpp.util.cache.ExpirationCache;
 
@@ -169,7 +170,7 @@ public class Socks5BytestreamRequest implements BytestreamRequest {
      * 
      * @return the sender of the SOCKS5 Bytestream initialization request.
      */
-    public String getFrom() {
+    public Jid getFrom() {
         return this.bytestreamRequest.getFrom();
     }
 
@@ -267,8 +268,9 @@ public class Socks5BytestreamRequest implements BytestreamRequest {
     /**
      * Rejects the SOCKS5 Bytestream request by sending a reject error to the initiator.
      * @throws NotConnectedException 
+     * @throws InterruptedException 
      */
-    public void reject() throws NotConnectedException {
+    public void reject() throws NotConnectedException, InterruptedException {
         this.manager.replyRejectPacket(this.bytestreamRequest);
     }
 
@@ -277,8 +279,9 @@ public class Socks5BytestreamRequest implements BytestreamRequest {
      * XMPP exception.
      * @throws XMPPErrorException 
      * @throws NotConnectedException 
+     * @throws InterruptedException 
      */
-    private void cancelRequest() throws XMPPErrorException, NotConnectedException {
+    private void cancelRequest() throws XMPPErrorException, NotConnectedException, InterruptedException {
         String errorMessage = "Could not establish socket with any provided host";
         XMPPError error = XMPPError.from(XMPPError.Condition.item_not_found, errorMessage);
         IQ errorIQ = IQ.createErrorResponse(this.bytestreamRequest, error);
@@ -296,7 +299,7 @@ public class Socks5BytestreamRequest implements BytestreamRequest {
         Bytestream response = new Bytestream(this.bytestreamRequest.getSessionID());
         response.setTo(this.bytestreamRequest.getFrom());
         response.setType(IQ.Type.result);
-        response.setPacketID(this.bytestreamRequest.getPacketID());
+        response.setStanzaId(this.bytestreamRequest.getStanzaId());
         response.setUsedHost(selectedHost.getJID());
         return response;
     }

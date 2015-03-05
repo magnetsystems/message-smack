@@ -32,7 +32,7 @@ import org.jivesoftware.smack.SmackException.NotConnectedException;
 import org.jivesoftware.smack.XMPPConnection;
 import org.jivesoftware.smack.XMPPException.XMPPErrorException;
 import org.jivesoftware.smack.packet.IQ;
-import org.jivesoftware.smack.packet.Packet;
+import org.jivesoftware.smack.packet.Stanza;
 import org.jivesoftware.smack.packet.XMPPError;
 import org.jivesoftware.smackx.bytestreams.ibb.packet.DataPacketExtension;
 import org.jivesoftware.smackx.bytestreams.socks5.packet.Bytestream;
@@ -40,9 +40,9 @@ import org.jivesoftware.smackx.disco.ServiceDiscoveryManager;
 import org.jivesoftware.smackx.filetransfer.FileTransferException.NoAcceptableTransferMechanisms;
 import org.jivesoftware.smackx.filetransfer.FileTransferException.NoStreamMethodsOfferedException;
 import org.jivesoftware.smackx.si.packet.StreamInitiation;
-import org.jivesoftware.smackx.xdata.Form;
 import org.jivesoftware.smackx.xdata.FormField;
 import org.jivesoftware.smackx.xdata.packet.DataForm;
+import org.jxmpp.jid.Jid;
 
 /**
  * Manages the negotiation of file transfers according to XEP-0096. If a file is
@@ -182,9 +182,10 @@ public class FileTransferNegotiator extends Manager {
      *                       there is not an appropriate stream method.
      * @throws NotConnectedException 
      * @throws NoAcceptableTransferMechanisms 
+     * @throws InterruptedException 
      */
     public StreamNegotiator selectStreamNegotiator(
-            FileTransferRequest request) throws NotConnectedException, NoStreamMethodsOfferedException, NoAcceptableTransferMechanisms {
+            FileTransferRequest request) throws NotConnectedException, NoStreamMethodsOfferedException, NoAcceptableTransferMechanisms, InterruptedException {
         StreamInitiation si = request.getStreamInitiation();
         FormField streamMethodField = getStreamMethodField(si
                 .getFeatureNegotiationForm());
@@ -300,10 +301,11 @@ public class FileTransferNegotiator extends Manager {
      * @throws NotConnectedException 
      * @throws NoResponseException 
      * @throws NoAcceptableTransferMechanisms 
+     * @throws InterruptedException 
      */
-    public StreamNegotiator negotiateOutgoingTransfer(final String userID,
+    public StreamNegotiator negotiateOutgoingTransfer(final Jid userID,
             final String streamID, final String fileName, final long size,
-            final String desc, int responseTimeout) throws XMPPErrorException, NotConnectedException, NoResponseException, NoAcceptableTransferMechanisms {
+            final String desc, int responseTimeout) throws XMPPErrorException, NotConnectedException, NoResponseException, NoAcceptableTransferMechanisms, InterruptedException {
         StreamInitiation si = new StreamInitiation();
         si.setSessionID(streamID);
         si.setMimeType(URLConnection.guessContentTypeFromName(fileName));
@@ -318,7 +320,7 @@ public class FileTransferNegotiator extends Manager {
         si.setTo(userID);
         si.setType(IQ.Type.set);
 
-        Packet siResponse = connection().createPacketCollectorAndSend(si).nextResultOrThrow(
+        Stanza siResponse = connection().createPacketCollectorAndSend(si).nextResultOrThrow(
                         responseTimeout);
 
         if (siResponse instanceof IQ) {
@@ -367,7 +369,7 @@ public class FileTransferNegotiator extends Manager {
     }
 
     private DataForm createDefaultInitiationForm() {
-        DataForm form = new DataForm(Form.TYPE_FORM);
+        DataForm form = new DataForm(DataForm.Type.form);
         FormField field = new FormField(STREAM_DATA_FIELD_NAME);
         field.setType(FormField.Type.list_single);
         if (!IBB_ONLY) {

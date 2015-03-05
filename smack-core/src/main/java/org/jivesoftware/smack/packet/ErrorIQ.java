@@ -16,6 +16,8 @@
  */
 package org.jivesoftware.smack.packet;
 
+import org.jivesoftware.smack.util.Objects;
+
 public class ErrorIQ extends SimpleIQ {
 
     public static final String ELEMENT = XMPPError.ERROR;
@@ -29,10 +31,9 @@ public class ErrorIQ extends SimpleIQ {
      */
     public ErrorIQ(XMPPError xmppError) {
         super(ELEMENT, null);
-        if (xmppError == null) {
-            throw new IllegalArgumentException("XMPPError must not be null");
-        }
-        type = IQ.Type.error;
+        Objects.requireNonNull(xmppError, "XMPPError must not be null");
+        setType(IQ.Type.error);
         setError(xmppError);
     }
+
 }

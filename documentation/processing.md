@@ -22,7 +22,7 @@ and a packet listener:
 // user. We use an AndFilter to combine two other filters._
 PacketFilter filter = new AndFilter(new PacketTypeFilter(Message.class),
 		new FromContainsFilter("mary@jivesoftware.com"));
-// Assume we've created a XMPPConnection name "connection".
+// Assume we've created an XMPPConnection name "connection".
 
 // First, register a packet collector using the filter we created.
 PacketCollector myCollector = connection.createPacketCollector(filter);
@@ -46,7 +46,7 @@ own filters by coding to the `PacketFilter` interface. The default set of
 filters includes:
 
   * `PacketTypeFilter` -- filters for packets that are a particular Class type.
-  * `PacketIDFilter` -- filters for packets with a particular packet ID.
+  * `StanzaIdFilter` -- filters for packets with a particular packet ID.
   * `ThreadFilter` -- filters for message packets with a particular thread ID.
   * `ToContainsFilter` -- filters for packets that are sent to a particular address.
   * `FromContainsFilter` -- filters for packets that are sent to a particular address.

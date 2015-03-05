@@ -18,9 +18,9 @@
 package org.jivesoftware.smackx.xdata.provider;
 
 import org.jivesoftware.smack.SmackException;
-import org.jivesoftware.smack.packet.RosterPacket;
 import org.jivesoftware.smack.provider.PacketExtensionProvider;
-import org.jivesoftware.smack.provider.RosterPacketProvider;
+import org.jivesoftware.smack.roster.packet.RosterPacket;
+import org.jivesoftware.smack.roster.provider.RosterPacketProvider;
 import org.jivesoftware.smackx.xdata.FormField;
 import org.jivesoftware.smackx.xdata.packet.DataForm;
 import org.jivesoftware.smackx.xdatalayout.packet.DataLayout;
@@ -44,7 +44,8 @@ public class DataFormProvider extends PacketExtensionProvider<DataForm> {
     @Override
     public DataForm parse(XmlPullParser parser, int initialDepth) throws XmlPullParserException, IOException,
                     SmackException {
-        DataForm dataForm = new DataForm(parser.getAttributeValue("", "type"));
+        DataForm.Type dataFormType = DataForm.Type.fromString(parser.getAttributeValue("", "type"));
+        DataForm dataForm = new DataForm(dataFormType);
         outerloop: while (true) {
             int eventType = parser.next();
             switch (eventType) {
@@ -93,12 +94,18 @@ public class DataFormProvider extends PacketExtensionProvider<DataForm> {
 
     private FormField parseField(XmlPullParser parser) throws XmlPullParserException, IOException {
         final int initialDepth = parser.getDepth();
-        FormField formField = new FormField(parser.getAttributeValue("", "var"));
-        formField.setLabel(parser.getAttributeValue("", "label"));
-        String typeString = parser.getAttributeValue("", "type");
-        if (typeString != null) {
-            formField.setType(FormField.Type.fromString(typeString));
+        final String var = parser.getAttributeValue("", "var");
+        final FormField.Type type = FormField.Type.fromString(parser.getAttributeValue("", "type"));
+
+        final FormField formField;
+        if (type == FormField.Type.fixed) {
+            formField = new FormField();
+        } else {
+            formField = new FormField(var);
+            formField.setType(type);
         }
+        formField.setLabel(parser.getAttributeValue("", "label"));
+
         outerloop: while (true) {
             int eventType = parser.next();
             switch (eventType) {

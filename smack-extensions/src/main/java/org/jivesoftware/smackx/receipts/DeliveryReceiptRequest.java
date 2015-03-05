@@ -19,8 +19,9 @@ package org.jivesoftware.smackx.receipts;
 import java.io.IOException;
 
 import org.jivesoftware.smack.packet.Message;
-import org.jivesoftware.smack.packet.Packet;
+import org.jivesoftware.smack.packet.Stanza;
 import org.jivesoftware.smack.packet.PacketExtension;
+import org.jivesoftware.smack.packet.id.StanzaIdUtil;
 import org.jivesoftware.smack.provider.PacketExtensionProvider;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
@@ -55,10 +56,10 @@ public class DeliveryReceiptRequest implements PacketExtension
      *
      * @param p the packet
      * @return the {@link DeliveryReceiptRequest} extension or {@code null}
-     * @deprecated use {@link #from(Packet)} instead
+     * @deprecated use {@link #from(Stanza)} instead
      */
     @Deprecated
-    public static DeliveryReceiptRequest getFrom(Packet p) {
+    public static DeliveryReceiptRequest getFrom(Stanza p) {
         return from(p);
     }
 
@@ -68,7 +69,7 @@ public class DeliveryReceiptRequest implements PacketExtension
      * @param packet the packet
      * @return the {@link DeliveryReceiptRequest} extension or {@code null}
      */
-    public static DeliveryReceiptRequest from(Packet packet) {
+    public static DeliveryReceiptRequest from(Stanza packet) {
         return packet.getExtension(ELEMENT, DeliveryReceipt.NAMESPACE);
     }
 
@@ -82,8 +83,11 @@ public class DeliveryReceiptRequest implements PacketExtension
      * @return the Message ID which will be used as receipt ID
      */
     public static String addTo(Message message) {
+        if (message.getStanzaId() == null) {
+            message.setStanzaId(StanzaIdUtil.newStanzaId());
+        }
         message.addExtension(new DeliveryReceiptRequest());
-        return message.getPacketID();
+        return message.getStanzaId();
     }
 
     /**
