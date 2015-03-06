@@ -25,8 +25,7 @@ allprojects {
 		rootConfigDir = new File(rootDir, 'config')
 		sonatypeCredentialsAvailable = project.hasProperty('sonatypeUsername') && project.hasProperty('sonatypePassword')
 		isReleaseVersion = !isSnapshot
-//		signingRequired = isReleaseVersion
-		signingRequired = false
+		signingRequired = isReleaseVersion
 		sonatypeSnapshotUrl = 'https://oss.sonatype.org/content/repositories/snapshots'
 		sonatypeStagingUrl = 'https://oss.sonatype.org/service/local/staging/deploy/maven2'
 		buildDate = (new java.text.SimpleDateFormat("yyyy-MM-dd")).format(new Date())
@@ -64,19 +63,6 @@ allprojects {
 	}
 }
 
-gradle.taskGraph.whenReady { taskGraph ->
-	if (signingRequired
-		&& taskGraph.allTasks.any { it instanceof Sign }) {
-		// Use Java 6's console to read from the console (no good for a CI environment)
-		Console console = System.console()
-		console.printf '\n\nWe have to sign some things in this build.\n\nPlease enter your signing details.\n\n'
-		def password = console.readPassword('GnuPG Private Key Password: ')
-
-		allprojects { ext.'signing.password' = password }
-
-		console.printf '\nThanks.\n\n'
-	}
-}
 
 task javadocAll(type: Javadoc) {
 	source subprojects.collect {project ->
