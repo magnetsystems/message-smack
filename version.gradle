@@ -1,6 +1,6 @@
 allprojects {
 	ext {
-		shortVersion = '4.0.7-int-p2'
+		shortVersion = '4.0.7p3'
 		isSnapshot = false
 	}
 }
