@@ -286,6 +286,10 @@ class PacketReader {
                 }
                 eventType = parser.next();
             } while (!done && eventType != XmlPullParser.END_DOCUMENT && thread == readerThread);
+            // [MAGNET] Simulate IOException when compression is disabled and loss of server connectivity
+            if (!done && eventType == XmlPullParser.END_DOCUMENT) {
+              throw IOException("Unexpected EOF from socket");
+            }
         }
         catch (Exception e) {
             // The exception can be ignored if the the connection is 'done'
