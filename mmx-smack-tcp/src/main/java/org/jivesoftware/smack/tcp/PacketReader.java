@@ -61,6 +61,8 @@ class PacketReader {
 
     volatile boolean done;
 
+    volatile boolean lenient;
+
     protected PacketReader(final XMPPTCPConnection connection) throws SmackException {
         this.connection = connection;
         this.init();
@@ -75,6 +77,7 @@ class PacketReader {
     protected void init() throws SmackException {
         done = false;
         lastFeaturesParsed = false;
+        lenient = false;
 
         readerThread = new Thread() {
             public void run() {
@@ -286,9 +289,11 @@ class PacketReader {
                 }
                 eventType = parser.next();
             } while (!done && eventType != XmlPullParser.END_DOCUMENT && thread == readerThread);
-            // [MAGNET] Simulate IOException when compression is disabled and loss of server connectivity
-            if (!done && eventType == XmlPullParser.END_DOCUMENT) {
-              throw IOException("Unexpected EOF from socket");
+
+            // Connection is lost and input stream gets -1. If lenient, treat it as gracefully
+            // disconnection; otherwise, treat it as connection error.
+            if (!lenient && !done && eventType == XmlPullParser.END_DOCUMENT) {
+              throw new IOException("Unexpected EOF from socket");
             }
         }
         catch (Exception e) {
