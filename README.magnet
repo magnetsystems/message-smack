@@ -1,0 +1,17 @@
+Date: 03/26/2018
+
+The dev artifactory (dev-repo.magnet.com:8081) has been shut down
+since 10/2017.  Now the deployment will push the artifacts to public
+artifactory (repo.magnet.com) directly.
+
+The public artifactory requires a production ${releaseUser} and
+${releasePassword} account from (~/.gradle/gradle.properties.)
+Hint: yuan.zhi@magnet.com and magnet WiFi password
+
+Make sure to use Gradle 2.13 or above.
+
+To build:
+gradle build
+
+To deploy:
+gradle uploadArchives
